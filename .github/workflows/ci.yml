@@ -1,0 +1,40 @@
+name: CI
+
+# Sur toutes les branches (push) et sur toutes les pull requests.
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    name: Qualité (ruff + gitleaks + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historique complet requis pour le scan gitleaks
+
+      - name: Installer uv (+ Python)
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+
+      - name: Installer les dépendances
+        run: uv sync
+
+      - name: Ruff — lint
+        run: uv run ruff check .
+
+      - name: Ruff — vérification du formatage
+        run: uv run ruff format --check .
+
+      - name: Gitleaks — détection de secrets
+        run: |
+          # Version pinnée une seule fois, dans .pre-commit-config.yaml (pas de doublon ici).
+          GITLEAKS_VERSION=$(grep -A1 'gitleaks/gitleaks' .pre-commit-config.yaml | sed -n 's/.*rev: *v\?\([0-9.]*\).*/\1/p')
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks git --redact --verbose .
+
+      - name: Tests unitaires
+        run: uv run pytest

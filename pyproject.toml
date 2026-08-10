@@ -1,0 +1,70 @@
+# --- Build : package installé en éditable (uv sync) pour être importable partout. ---
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "decrochage-l1"
+version = "0.1.0"
+description = "Détection précoce du décrochage étudiant en L1 (cas d'usage certification IA)."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"  # dupliqué volontairement dans .python-version (lu par uv/pyenv)
+dependencies = [
+    "matplotlib>=3.11.1",
+    "numpy>=2.3,<2.4",  # borné : numba (dépendance de SHAP) ne supporte pas encore numpy 2.4+
+    "pandas>=3.0.3",
+    "scikit-learn>=1.9.0",
+    "shap>=0.52.0",
+    "pydantic-settings>=2.3",  # configuration runtime surchargeable par l'environnement (config.py)
+]
+
+# Dépendances de DÉVELOPPEMENT (lint, format, tests, notebooks) : hors runtime.
+[dependency-groups]
+dev = [
+    "ruff>=0.15.21",
+    "pytest>=9.1.1",
+    "pre-commit>=4.6.0",
+    "ipykernel>=7.3.0",
+]
+
+# `src/` layout : indiquer explicitement le package à empaqueter.
+[tool.hatch.build.targets.wheel]
+packages = ["src/decrochage_l1"]
+
+# --- Ruff : linter + formateur (remplace black + isort) ------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "scripts", "tests"]
+extend-exclude = [".venv*", "venv*", "dist", "build"]
+
+[tool.ruff.lint]
+# E  = style (pycodestyle)
+# F  = erreurs logiques (pyflakes)
+# I  = tri des imports (isort)
+# UP = modernisation (pyupgrade)
+# B  = pièges courants (bugbear)
+# SIM = simplifications
+# C4 = comprehensions
+# N  = conventions de nommage
+# RUF = règles ruff
+# D1xx = présence des docstrings (pydocstyle) : module + classe/méthode/fonction publiques,
+#        sans imposer leur mise en forme : docstrings en français, commentaires réservés au non-évident.
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "N", "RUF", "D100", "D101", "D102", "D103"]
+
+# Les fonctions de test se documentent par leur nom (`test_...`) et leurs assertions :
+# ne pas exiger de docstring de module ni de fonction dans `tests/`.
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D100", "D103"]
+
+[tool.ruff.lint.isort]
+# Regroupe les imports du code interne dans un bloc distinct des paquets tiers.
+known-first-party = ["decrochage_l1"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# --- Pytest --------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

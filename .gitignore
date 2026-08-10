@@ -1,0 +1,50 @@
+# Fichiers générés par Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Environnements virtuels
+.venv
+
+# Caches d'outillage
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Secrets / configuration locale (cf. gitleaks)
+.env
+
+# Éditeurs / IDE
+.vscode/
+.idea/
+
+# Artefacts de modèles (sérialisation joblib) — ne pas versionner
+models/*.joblib
+models/*.pkl
+
+# Données : aucun palier versionné, quel qu'il soit — précaution RGPD. Un fichier entré
+# dans l'historique Git y demeure : le supprimer plus tard ne l'en retire pas.
+# La règle porte sur `data/` ENTIER, et non palier par palier : un dossier créé plus
+# tard (bronze, silver…) est ignoré d'office, sans dépendre d'une mise à jour d'ici.
+# Structure préservée via .gitkeep ; voir data/README.md pour l'approvisionnement.
+data/**
+!data/README.md
+!data/**/
+!data/**/.gitkeep
+
+# Rapports générés (profilage HTML) : ils citent des valeurs brutes, donc des
+# données personnelles — même raison que data/ de ne pas entrer dans Git.
+reports/*
+!reports/.gitkeep
+
+# Notes de travail perso (échafaudage non-autoritatif, à recouper, voué à disparaître)
+# Zone non-autoritative : rien n'en sort sans re-mesure ou ré-instruction, ni sans feu vert.
+notebooks/*.local.ipynb
+docs/local/
+
+# Supports de formation : matériel d'appui local, non versionné (volume + supports tiers).
+docs/support_formation/

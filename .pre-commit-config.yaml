@@ -1,0 +1,52 @@
+# Hooks de pré-commit — qualité (ruff) et sécurité (gitleaks).
+# Activation, une fois par clone : uv run pre-commit install
+# Lancer sur tout le dépôt manuellement : uv run pre-commit run --all-files
+repos:
+  # --- ruff : lint avec autocorrection + formatage (traite aussi les .ipynb) ---
+  # `rev` à réaligner avec la version résolue par uv (pyproject/uv.lock) via `pre-commit autoupdate`.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.21
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # --- gitleaks : détection de secrets/mots de passe sur les fichiers stagés ---
+  # pre-commit gère lui-même le toolchain Go nécessaire à la compilation du hook.
+  # `rev` = source unique de la version gitleaks : la CI (ci.yml) la lit depuis ce fichier.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # --- garde SSOT/DRY : interdit qu'un fichier versionné cite un FICHIER de docs/local/ ---
+  # La zone seule ("docs/local/") reste permise : seul le renvoi vers un fichier précis est bloqué.
+  # Ce que la garde protège : `docs/local/` est une réserve NON-AUTORITATIVE (cf. son README).
+  - repo: local
+    hooks:
+      - id: no-local-file-refs
+        name: aucune référence à un fichier de docs/local/
+        entry: uv run python scripts/check_local_refs.py
+        language: system
+        types: [text]
+        exclude: '^scripts/check_local_refs\.py$'
+
+  # --- garde rédaction assistée : aucune balise d'appel d'outil ne doit fuiter dans un fichier ---
+  # Une rédaction assistée peut clore son appel d'outil dans le contenu écrit — déjà constaté.
+  # `pygrep` échoue si le motif est présent ; le fichier de conf s'exclut lui-même (il le cite).
+  - repo: local
+    hooks:
+      - id: no-tool-tags
+        name: aucune balise d'appel d'outil résiduelle
+        entry: '</(invoke|content|function_calls|parameter)>'
+        language: pygrep
+        types: [text]
+        exclude: '^\.pre-commit-config\.yaml$'
+
+  # --- hygiène : bloque l'ajout accidentel de fichiers volumineux (> 1 Mo) ---
+  # Laisse passer les données brutes (~0,9 Mo) mais arrête les binaires/modèles lourds.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1024]

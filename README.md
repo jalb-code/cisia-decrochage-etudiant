@@ -58,7 +58,7 @@ data/            zone de dépôt (raw, sample) puis paliers produits par le code
   sample/    échantillon de 50 lignes (première lecture)
   bronze/    écritures conformées, vocabulaire recodé, doublons exacts retirés
   silver/    exclusions tranchées et appliquées, jointure catalogue
-  gold/      jeu prêt à l'apprentissage, features finales comprises
+  gold/      jeu de référence : propre, annoté, validé, lisible par un humain
 src/decrochage_l1/  code source réutilisable, importable et testé
   config.py           réglages d'exécution (chemins), surchargeables par `DECROCHAGE_L1_*`
   schema.py           vocabulaire cible du recodage (forme canonique des modalités)
