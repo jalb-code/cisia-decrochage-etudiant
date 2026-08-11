@@ -1,1 +1,3 @@
 id,question,posee_en,tranchee_en,decision,perimetre,statut
+D01,Les jeux de données doivent-ils entrer dans le dépôt ?,scaffolding,scaffolding,"Données hors dépôt ; approvisionnement documenté (README)",minimal,tranchée
+D02,À quelles conditions recourir à l'assistance IA (Claude Code) de façon défendable ?,scaffolding,scaffolding,"Socle IA cadré, human-in-the-loop : l'humain tranche, agents en lecture seule",optimal,tranchée
