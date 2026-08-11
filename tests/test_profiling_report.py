@@ -6,6 +6,7 @@ _OVERVIEW = [
     "colonne",
     "type_reel",
     "type_semantique",
+    "n_distinct",
     "n_distinct_normalise",
     "min",
     "max",

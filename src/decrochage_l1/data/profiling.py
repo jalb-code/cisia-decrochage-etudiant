@@ -12,7 +12,7 @@ entrées :
   (minuscules, sans accent, espaces normalisés).
 
 Le profil se lit à deux niveaux, pour une seule mesure : `CsvProfile.overview()`
-en donne les sept indicateurs qui tiennent à l'écran, et le **rapport HTML** —
+en donne les huit indicateurs qui tiennent à l'écran, et le **rapport HTML** —
 optionnel, délégué à `profiling_report` — les quatorze au complet, modalités
 énumérées.
 
@@ -121,13 +121,14 @@ _MAX_MODALITIES = 20
 _MAX_PATTERNS = 12
 
 # Vue resserrée du profil, pour la lecture à l'écran : ce qu'une colonne est,
-# combien de modalités elle porte, ses bornes, son taux de manquants. Les sept
-# autres indicateurs restent dans `CsvProfile.columns` et sont restitués par le
-# rapport HTML — une seule mesure, deux restitutions.
+# combien de modalités elle porte (brutes et normalisées), ses bornes, son taux
+# de manquants. Les six autres indicateurs restent dans `CsvProfile.columns` et
+# sont restitués par le rapport HTML — une seule mesure, deux restitutions.
 _OVERVIEW_COLUMNS = (
     "colonne",
     "type_reel",
     "type_semantique",
+    "n_distinct",
     "n_distinct_normalise",
     "min",
     "max",
@@ -173,13 +174,13 @@ class CsvProfile:
     report_path: Path | None = None  # rapport HTML, si sa génération a été demandée
 
     def overview(self) -> pd.DataFrame:
-        """Vue resserrée du profil de colonnes — sept indicateurs au lieu de quatorze.
+        """Vue resserrée du profil de colonnes — huit indicateurs au lieu de quatorze.
 
         À afficher à l'écran, où quatorze colonnes forcent le repli sur plusieurs
-        blocs et noient l'essentiel. Les sept autres indicateurs (motif d'écriture,
-        cardinalité brute, non-conformité, exemples, remarques) ne sont pas perdus :
-        `columns` les porte toujours — c'est lui que filtrent les extractions de
-        défauts — et le rapport HTML les restitue en entier.
+        blocs et noient l'essentiel. Les six autres indicateurs (motif d'écriture,
+        non-conformité, exemples, remarques) ne sont pas perdus : `columns` les
+        porte toujours — c'est lui que filtrent les extractions de défauts — et le
+        rapport HTML les restitue en entier.
         """
         return self.columns[list(_OVERVIEW_COLUMNS)]
 

@@ -61,7 +61,7 @@ data/            zone de dépôt (raw, sample) puis paliers produits par le code
   gold/      jeu de référence : propre, annoté, validé, lisible par un humain
 src/decrochage_l1/  code source réutilisable, importable et testé
   config.py           réglages d'exécution (chemins), surchargeables par `DECROCHAGE_L1_*`
-  schema.py           vocabulaire cible du recodage (forme canonique des modalités)
+  schema.py           vocabulaire cible du recodage et grille de lecture (thèmes des colonnes)
   data/
     profiling.py         profilage d'un CSV : encodage, types, écritures, non-conformité
     profiling_report.py  restitution HTML du profil (mise en page seule)
