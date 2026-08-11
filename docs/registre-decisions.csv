@@ -1,3 +1,6 @@
 id,question,posee_en,tranchee_en,decision,perimetre,statut
 D01,Les jeux de données doivent-ils entrer dans le dépôt ?,scaffolding,scaffolding,"Données hors dépôt ; approvisionnement documenté (README)",minimal,tranchée
 D02,À quelles conditions recourir à l'assistance IA (Claude Code) de façon défendable ?,scaffolding,scaffolding,"Socle IA cadré, human-in-the-loop : l'humain tranche, agents en lecture seule",optimal,tranchée
+D03,Comment pondérer un décrochage manqué (FN) et un signalement à tort (FP) ?,§2,§2,"Asymétrie qualitative FN ≫ FP retenue ; départage des modèles sur une métrique indépendante du seuil (ROC/AUC)",minimal,tranchée
+D04,Quel seuil de décision retenir ?,§2,§12,"Non figé au cadrage (coût et capacité non fournis) ; calibrage multi-scénarios reporté en §12",minimal,reportée
+D05,L'explicabilité : quel impact sur la solution et le choix du modèle ?,§2,§2,"Contrainte de conception : restitution SHAP globale + locale ; critère du choix de modèle",minimal,tranchée
