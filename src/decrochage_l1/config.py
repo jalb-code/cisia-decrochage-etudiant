@@ -46,22 +46,23 @@ class Settings(BaseSettings):
         return self.data_dir / "sample"
 
     # Les trois paliers ci-dessous sont tous PRODUITS par le code, jamais déposés à
-    # la main. Chacun n'entre qu'une transformation supplémentaire, pour qu'une
+    # la main, et tous en §7 : la chaîne repart des fichiers reçus, pas du jeu de
+    # travail. Chacun n'entre qu'une transformation supplémentaire, pour qu'une
     # anomalie constatée en aval se rattache à un palier — donc à une étape — précis.
 
     @property
     def bronze_dir(self) -> Path:
-        """Palier bronze : écritures conformées, vocabulaire recodé, doublons exacts retirés."""
+        """Palier bronze : copie exacte des fichiers reçus, immuable — rien n'y est transformé."""
         return self.data_dir / "bronze"
 
     @property
     def silver_dir(self) -> Path:
-        """Palier silver : manquants et exclusions tranchés et appliqués."""
+        """Palier silver : écritures conformées, vocabulaire recodé, doublons exacts retirés."""
         return self.data_dir / "silver"
 
     @property
     def gold_dir(self) -> Path:
-        """Palier gold : jeu prêt à l'apprentissage, features finales comprises."""
+        """Palier gold : décisions de l'EDA appliquées — jeu de référence, lisible tel quel."""
         return self.data_dir / "gold"
 
     @property

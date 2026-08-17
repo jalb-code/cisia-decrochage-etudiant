@@ -11,7 +11,7 @@ comportement de la primitive, pas sur le contrat des fichiers du projet.
 import pandas as pd
 import pytest
 
-from decrochage_l1.data import cleaning
+from decrochage_l1.data.utils import cleaning_utils as cleaning
 
 FORMATS_DATE = ("%Y-%m-%d", "%d/%m/%Y", "%d %b %Y")
 

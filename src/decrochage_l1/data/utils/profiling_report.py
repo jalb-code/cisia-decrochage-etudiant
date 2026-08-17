@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 if TYPE_CHECKING:
-    from decrochage_l1.data.profiling import CsvProfile
+    from decrochage_l1.data.utils.profiling_utils import CsvProfile
 
 # Rappel de fonctionnement, affiché en tête de rapport : le lecteur ne doit pas
 # avoir à ouvrir le code pour savoir ce que mesure une colonne du tableau.

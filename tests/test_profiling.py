@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from decrochage_l1.data import profiling
+from decrochage_l1.data.utils import profiling_utils as profiling
 
 
 def _csv(tmp_path, content: str, name: str = "source.csv", encoding: str = "utf-8") -> object:
@@ -207,63 +207,6 @@ def test_le_taux_de_null_ignore_les_blancs():
     assert profile["null_%"] == 50.0
 
 
-# --- Mise en forme ------------------------------------------------------------
-
-
-def test_conform_type_sans_rien_supprimer():
-    data = pd.DataFrame(
-        {
-            "distance": ["12.0 km", "2,2"],
-            "quand": ["2024-09-27", "04 Sep 2024"],
-            "filiere": [" GESTION ", "Gestion"],
-            "abandon": ["0", "1"],
-        }
-    )
-    conformed = profiling.conform(data, profiling.profile_columns(data))
-
-    assert conformed.shape == data.shape  # aucune ligne ni colonne perdue
-    assert list(conformed["distance"]) == [12.0, 2.2]
-    assert conformed["quand"].dt.day.tolist() == [27, 4]
-    assert list(conformed["filiere"]) == ["gestion", "gestion"]
-    assert list(conformed["abandon"]) == [0, 1]
-
-
-def test_conform_ne_fusionne_pas_les_modalites():
-    """« F » et « Femme » disent peut-être la même chose : c'est une décision, pas une forme."""
-    data = pd.DataFrame({"sexe": ["F", "Femme", "f", "Homme"]})
-    conformed = profiling.conform(data, profiling.profile_columns(data))
-    assert set(conformed["sexe"]) == {"f", "femme", "homme"}
-
-
-def test_conform_laisse_un_booleen_en_toutes_lettres_au_recodage():
-    data = pd.DataFrame({"boursier": ["Oui", "N", "non", "O"]})
-    conformed = profiling.conform(data, profiling.profile_columns(data))
-    assert conformed["boursier"].dtype == "string"
-
-
-def test_une_cellule_vide_devient_un_manquant_pas_une_modalite():
-    """Sinon la chaîne vide se compterait comme une catégorie de plein droit en EDA."""
-    data = pd.DataFrame({"mention": ["Bien", "", "   ", "Passable"]})
-    conformed = profiling.conform(data, profiling.profile_columns(data))
-    assert conformed["mention"].isna().sum() == 2
-    assert conformed["mention"].nunique() == 2
-
-
-def test_un_entier_a_trous_ne_devient_pas_flottant():
-    data = pd.DataFrame({"motivation": ["3", "", "5"]})
-    conformed = profiling.conform(data, profiling.profile_columns(data))
-    assert conformed["motivation"].dtype == "Int64"
-
-
-def test_conform_est_idempotent_sur_le_typage():
-    """Rejouer la mise en forme ne doit rien changer — sinon elle détruirait de l'information."""
-    data = pd.DataFrame({"a": ["1,5", "2.5"], "b": ["Nord", " nord "]})
-    profile = profiling.profile_columns(data)
-    once = profiling.conform(data, profile)
-    twice = profiling.conform(once.astype(str), profiling.profile_columns(once.astype(str)))
-    pd.testing.assert_frame_equal(once, twice, check_dtype=False)
-
-
 # --- Inventaire des motifs d'écriture -----------------------------------------
 
 
@@ -293,31 +236,3 @@ def test_pattern_breakdown_se_tait_au_dela_du_plafond():
 
 def test_pattern_breakdown_ignore_les_manquants():
     assert profiling.pattern_breakdown(pd.Series(["", "   ", None])) is None
-
-
-# --- Contraintes d'ordre entre colonnes ---------------------------------------
-
-
-def test_check_order_constraints_compte_les_violations_ligne_a_ligne():
-    """Deux colonnes de même maximum peuvent se croiser sur une ligne."""
-    data = pd.DataFrame({"rendus": [3, 9, 13], "total": [13, 8, 13]})
-    report = profiling.check_order_constraints(data, [("rendus", "total")])
-
-    assert report.loc[0, "n_violations"] == 1  # la ligne 9 > 8
-    assert report.loc[0, "n_comparables"] == 3
-    assert report.loc[0, "contrainte"] == "rendus <= total"
-
-
-def test_check_order_constraints_ne_tient_pas_un_manquant_pour_conforme():
-    data = pd.DataFrame({"rendus": [3, None], "total": [13, 8]})
-    report = profiling.check_order_constraints(data, [("rendus", "total")])
-
-    assert (report.loc[0, "n_comparables"], report.loc[0, "n_non_comparables"]) == (1, 1)
-
-
-def test_check_order_constraints_ignore_une_paire_hors_schema():
-    """Le même appel sert des fichiers de schémas différents."""
-    data = pd.DataFrame({"rendus": [1], "total": [2]})
-    report = profiling.check_order_constraints(data, [("rendus", "total"), ("absente", "total")])
-
-    assert len(report) == 1

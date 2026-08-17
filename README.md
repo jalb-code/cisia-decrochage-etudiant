@@ -36,7 +36,7 @@ data/raw/dataset catalogue_formations_V5.csv
 data/sample/dataset decrochage_etudiants_echantillon_V5.csv
 ```
 
-Les dossiers `bronze/`, `silver/` et `gold/` restent vides : ce sont les **paliers**, **produits
+Les dossiers `bronze/`, `silver/` et `gold/` restent vides : les trois **paliers** sont **produits
 par le code**, jamais déposés à la main. Détail : [data/README.md](data/README.md).
 
 ### 3. Vérifier, tester, exécuter
@@ -53,20 +53,24 @@ comme noyau (Jupyter / VS Code).
 ## Arborescence
 
 ```
-data/            zone de dépôt (raw, sample) puis paliers produits par le code (bronze → gold)
+data/            zone de dépôt (raw, sample) puis paliers produits par le code
   raw/       jeux de données bruts fournis (5 240 lignes / 5 200 étudiants, + catalogue formations)
   sample/    échantillon de 50 lignes (première lecture)
-  bronze/    écritures conformées, vocabulaire recodé, doublons exacts retirés
-  silver/    exclusions tranchées et appliquées, jointure catalogue
+  bronze/    copie exacte des fichiers reçus, immuable
+  silver/    écritures conformées, vocabulaire recodé, doublons exacts retirés
   gold/      jeu de référence : propre, annoté, validé, lisible par un humain
 src/decrochage_l1/  code source réutilisable, importable et testé
   config.py           réglages d'exécution (chemins), surchargeables par `DECROCHAGE_L1_*`
-  schema.py           vocabulaire cible du recodage et grille de lecture (thèmes des colonnes)
+  eda.py              mesures d'exploration (associations, manquants, extrêmes) + tracés minces
   data/
-    profiling.py         profilage d'un CSV : encodage, types, écritures, non-conformité
-    profiling_report.py  restitution HTML du profil (mise en page seule)
-    cleaning.py          primitives de mise en forme (parsing, normalisation d'écriture)
-    bronze.py            production du palier bronze (conformation, recodage, dédoublonnage)
+    preparation.py       mise en forme du cas d'usage : vocabulaire cible + conformation,
+                         recodage, dédoublonnage (`transform`). Sert au jeu de travail (§5)
+                         puis au palier silver (§7)
+    utils/               briques agnostiques du cas d'usage
+      profiling_utils.py   profilage d'un CSV : encodage, types, écritures, non-conformité
+      profiling_report.py  restitution HTML du profil (mise en page seule)
+      cleaning_utils.py    primitives de mise en forme (parsing, normalisation d'écriture)
+      recoding_utils.py    mécanisme de recodage (reçoit son vocabulaire, n'en fige aucun)
 scripts/     scripts utilitaires (gardes de cohérence du dépôt)
 tests/       tests unitaires (pytest, src/ sur le pythonpath)
 models/      pipelines sérialisés (joblib)

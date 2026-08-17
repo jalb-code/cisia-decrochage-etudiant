@@ -18,15 +18,15 @@ data/
 
 ## Les paliers
 
-`raw` et `sample` sont une **zone de dépôt** : jamais modifiées. Les trois paliers qui suivent sont **produits par le code**, chacun n'ajoutant qu'une transformation — pour qu'une anomalie constatée en aval se rattache à une étape précise.
+`raw` et `sample` sont une **zone de dépôt** : jamais modifiées. Les trois paliers qui suivent sont **produits par le code**, tous en §7 : **bronze** est la copie exacte des fichiers reçus — le point de reprise immuable, rien n'y est transformé — puis **silver** et **gold** n'ajoutent chacun que leur transformation, pour qu'une anomalie constatée en aval se rattache à une étape précise. La chaîne repart toujours des fichiers reçus.
 
 | Palier | Ce que le palier ajoute | Produit par |
 |---|---|---|
-| **bronze** | Écritures conformées, vocabulaire recodé, lignes strictement identiques retirées — **aucune information perdue** | [`data/bronze.py`](../src/decrochage_l1/data/bronze.py) |
-| **silver** | Manquants et exclusions tranchés et appliqués | à venir |
-| **gold** | Jeu prêt à l'apprentissage, features finales comprises | à venir |
+| **bronze** | La copie **exacte** des fichiers reçus, immuable — rien n'y est transformé | à venir |
+| **silver** | Écritures conformées, vocabulaire recodé, lignes strictement identiques retirées — **aucune information perdue** | [`preparation.transform`](../src/decrochage_l1/data/preparation.py) |
+| **gold** | Décisions de l'EDA appliquées : exclusions, jointure catalogue, dérivations — jeu de référence | à venir |
 
-Les paliers s'écrivent en **CSV**, lisibles dans un tableur. Ces fichiers sont des **copies de contrôle** : le notebook, lui, fait circuler les `DataFrame` d'une section à l'autre. Relire un palier avec `pandas` seul ne rendrait ni les dates ni les entiers *nullable* posés à la conformation — il faut alors le reprofiler (`profiling.profile_csv` puis `conform`), comme on charge une source brute.
+Les paliers s'écrivent en **CSV**, lisibles dans un tableur. Ces fichiers sont des **copies de contrôle** : le notebook, lui, fait circuler les `DataFrame` d'une section à l'autre. Relire un palier avec `pandas` seul ne rendrait ni les dates ni les entiers *nullable* posés à la conformation — il faut alors le reprofiler (`profiling_utils.profile_csv` puis `preparation.conform`), comme on charge une source brute.
 
 ## Comment obtenir les données
 

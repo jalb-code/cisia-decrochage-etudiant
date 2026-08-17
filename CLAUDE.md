@@ -68,10 +68,11 @@ question est posée et où elle est tranchée**, pour qu'aucune ne reste en l'ai
    le code** depuis `settings`. Le matériel long va en **§15 Annexes**.
 3. **Le notebook ne fait pas de cours.** Il montre le résultat d'une méthode, il ne l'enseigne pas.
    Un argument de méthode ne s'écrit que si le jury peut le contester.
-4. **Le silence est une forme.** Une sortie qui n'appelle ni décision, ni contrôle, ni report ne
-   reçoit **aucun** commentaire — pas même un `✅`.
-5. **Rien ne se rejoue.** Pas de sous-section récapitulative, pas de table « Décisions » / « À
-   décider » : ce qui reste ouvert s'écrit **à l'endroit de la mesure qui l'a levé**.
+4. **Le silence est une forme.** Une sortie qui n'appelle ni décision, ni contrôle, ni report se
+   passe de commentaire — on ne glose pas pour meubler.
+5. **Ce qui reste ouvert s'écrit à l'endroit de la mesure qui l'a levé**, pas dans une table
+   « Décisions » / « À décider » séparée. Un **bilan factuel** de l'état de la donnée (types,
+   manquants, modalités) reste permis : il constate un état, il ne rejoue aucune décision.
 6. **Un sujet, un endroit.** Une section *cadre* (le pourquoi) ou *réalise* (le comment), jamais
    les deux ; celle qui réalise renvoie à celle qui a cadré, par un `§N` nu.
 7. **N'affiche rien que le lecteur puisse lire ailleurs.** Ce qu'une sortie déjà à l'écran contient,
@@ -79,26 +80,23 @@ question est posée et où elle est tranchée**, pour qu'aucune ne reste en l'ai
 
 ### Le squelette d'une section
 
-`# N. Titre [Cx]` + une phrase `**Objectif** : …` + l'encart 🔧 · puis, s'il y a lieu, une **cellule
-de code de préambule** (imports, réglages, artefacts et leurs liens) qui n'appelle aucun commentaire
-· puis les `## N.n` numérotés · et pour finir la ligne `✅` qui acte le produit de la section.
+`# N. Titre [Cx]` + une phrase `**Objectif** : …` · puis, s'il y a lieu, une **cellule de code de
+préambule** (imports, réglages, artefacts et leurs liens) · puis les `## N.n` numérotés · et, quand
+elle acte un produit, une ligne `✅` de clôture.
 
-- **Le niveau `###` est réservé aux contrôles de cohérence.** Une sous-section garde le niveau 2
-  quel que soit le nombre de constats qu'elle porte. Deux sorties de même nature restent sous un
-  seul `##` et se distinguent par leur étiquette `**> Libellé**`.
-- **Le titre de sous-section est un groupe nominal nu** — `## 5.2 Profilage des colonnes et de leur
-  contenu`. Sous ce titre, une à deux phrases sont admises **avant** la sortie si elles énoncent une
-  intention (« je procède à… dans le cas où… ») ou qualifient un artefact (« copie de contrôle,
-  inspectable dans un tableur ») — jamais si elles interprètent la sortie à venir.
-- **Un contrôle est une question, et son titre est cette question**, reprise telle quelle de la
-  puce qui l'annonçait — `### 5.3.2 nb_devoirs_rendus ≤ nb_devoirs_total … sur toutes les lignes ?`,
-  identifiants backtickés compris. Le titre pose, la sortie répond, le `✅` clôt.
+- **Les niveaux `###`/`####` structurent librement** une sous-section longue — interprétation,
+  contrôles, bilan. On titre ce qui aide le lecteur, sans quota ni réservation à un usage unique ;
+  deux sorties de même nature peuvent aussi se distinguer par une étiquette `**> Libellé**`.
+- **Un titre de sous-section est un groupe nominal** — `## 5.2 Profilage des colonnes`. Une à deux
+  phrases d'intention sont admises avant la sortie ; on évite seulement d'interpréter à l'avance une
+  sortie qu'on n'a pas encore montrée.
 - **Voix** : encarts et phrases d'intention à la **première personne** ; `Constat ⇒ Décision` et
   `✅` impersonnels.
 
-### Les quatre blocs, et pas un cinquième
+### Blocs de lecture (patrons recommandés)
 
-Sous une sortie, un **bloc de lecture** ou rien. Trois au plus par section.
+Sous une sortie, un **bloc de lecture** court ou rien. Les gabarits ci-dessous donnent la
+régularité ; ce sont des patrons recommandés, pas un carcan à compter.
 
 ```
 **Constat ⇒ Décision**
@@ -110,9 +108,9 @@ Sous une sortie, un **bloc de lecture** ou rien. Trois au plus par section.
 **⇒ Rien à mettre en forme.**
 ```
 
-Le gras nomme le **défaut** (« Erreurs de format », « Valeurs hétérogènes »), jamais l'objet ni
-l'action, et s'arrête au groupe qui porte le chiffre. La glose italique oppose deux termes. Deux
-niveaux de puces, pas trois.
+Le gras nomme le **défaut** (« Erreurs de format », « Valeurs hétérogènes ») plutôt que l'objet ou
+l'action, et s'arrête au groupe qui porte le chiffre. La glose italique oppose deux termes. On évite
+d'empiler plus de deux niveaux de puces.
 
 ```
 **Cohérence à vérifier ⇒ à faire en §5.3**
@@ -131,7 +129,7 @@ il ne prend jamais la forme d'un `Constat ⇒ Décision`.
 
 ```
 ✅ 100 % d'appariement ⇒ La jointure est possible
-✅ Palier **Bronze** construit
+✅ Palier **Silver** construit
 ```
 
 Une cellule, une ligne, sans point final. Le `✅` de clôture de section est le plus court : il acte
@@ -142,7 +140,7 @@ le produit, sans chiffre.
 > 🔎 **Où lire le détail complet.** …  une fois, avant la sortie tronquée : où lire ce qu'on ne montre pas
 ```
 
-**Aucun autre emoji, aucun blockquote sans emoji.** Ce qu'un encart dit ne se redit nulle part.
+Les encarts 🔧 et 🔎 sont les gabarits habituels ; ce qu'un encart dit ne se redit pas ailleurs.
 
 ### Typographie
 
@@ -155,7 +153,8 @@ le produit, sans chiffre.
 | `/` | variantes d'une même valeur : `f`/`femme` |
 | `§N` | renvoi interne, sans lien |
 
-**Aucun tableau markdown tapé à la main** : un tableau de données est une sortie de code.
+Un tableau markdown écrit à la main est permis. Seul l'**invariant 1** le contraint : chaque chiffre
+qu'il porte doit apparaître dans une sortie de cellule.
 
 ### Densité
 
@@ -163,9 +162,9 @@ le produit, sans chiffre.
 |---|---|
 | cellule de commentaire | **~120 caractères** en médiane ; le plafond d'un écran vaut toujours |
 | cellule de lecture d'une sortie de synthèse | jusqu'à ~1 200 caractères — le critère est *une sortie, une cellule*, pas la longueur |
-| poids markdown / poids code d'une section | le markdown pèse **moins** que le code |
+| poids markdown / poids code d'une section | indicatif : rester sobre ; une section d'interprétation peut légitimement être plus bavarde |
 
-*Étalon mesuré, §5 : 25 cellules, 3 871 caractères de markdown pour 4 225 de code, médiane 119.*
+*Le ratio markdown/code n'est pas une cible chiffrée : c'est un repère de sobriété, pas une règle.*
 
 ### Rapport au journal de bord
 
@@ -176,14 +175,24 @@ section qui n'arbitre rien (§5) n'a pas de journal.
 
 ## Découpage des sections données (C3)
 
-Un **palier est un état de la donnée, pas une unité de rédaction**.
+Un **palier est un état de la donnée, pas une unité de rédaction**. Et **les trois paliers naissent
+en §7** : §5 et §6 constatent, mesurent, décident ; §7 agit.
 
 | § | Rôle | Produit |
 |---|---|---|
-| **5** Chargement et compréhension | profiler, constater, inventorier les modalités | **bronze** — conformation d'écriture, recodage, dédoublonnage. N'arbitre rien, ne perd aucune information |
+| **5** Chargement et compréhension | profiler, constater, inventorier les modalités | **jeu de travail** — conformation d'écriture, recodage, dédoublonnage. N'arbitre rien, ne perd aucune information. **Jetable** : il ne sert qu'à §6, §7 repart des fichiers reçus |
 | **6** EDA | mesurer, interpréter, **décider** — sur l'ensemble du jeu | rien : aucune donnée n'est modifiée |
-| **7** Préparation | appliquer les décisions de §6 | **silver** → **gold**. La section se clôt sur le jeu de référence et ses décisions |
+| **7** Préparation | repartir des fichiers reçus, rejouer les règles de §5, appliquer les décisions de §6 | **bronze** → **silver** → **gold**. La section se clôt sur le jeu de référence et ses décisions |
 | **9** Entraînement | **splitter**, puis ajuster le `Pipeline` sur le train seul | partition train / test, puis imputation, encodages, scaling |
+
+**Le bronze est la copie exacte des fichiers reçus, immuable** — rien n'y est transformé. C'est
+l'assurance de pouvoir rejouer la chaîne depuis la source si une règle de conformation se révèle
+fausse. Le palier conformé, recodé, dédoublonné, c'est le **silver**.
+
+**§5 fabrique un jeu de travail, pas un palier.** Sans lui, l'EDA serait impossible — on n'explore
+pas des nombres restés en texte. Mais il ne circule pas au-delà de §6 : §7 rejoue les mêmes règles
+depuis le bronze, par le même code (`data/preparation.py`, `transform`), ce qui garantit que ce qui
+a été exploré est bien ce qui est préparé.
 
 **Le gold est le jeu de référence : propre, annoté, validé, lisible par un humain.** Ce n'est pas la
 matrice que consomme `fit()` — celle-là est la sortie du `Pipeline`, et n'est pas un palier.
@@ -193,12 +202,12 @@ elle appartient au `Pipeline`*. `assez bien` reste `assez bien` ; un `1` à sa p
 
 | Dans le gold (déterministe) | Dans le `Pipeline` (apprend, donc après le split) |
 |---|---|
-| exclusions de principe, jointure catalogue, dérivations ligne à ligne (`taux_rendu`) | imputation, one-hot, encodage ordinal, scaling |
+| exclusions de principe, dérivations ligne à ligne (`taux_rendu`) | imputation, one-hot, encodage ordinal, scaling |
 
 **L'exploration porte sur l'ensemble du jeu** — décrire les données, c'est les décrire toutes, et
 c'est ce qui garantit qu'aucune modalité rare ne manque à l'inventaire. Deux garde-fous :
 
-- **Le vocabulaire catégoriel est déclaré, jamais déduit** — `schema.CANONICAL_MODALITIES` fait foi,
+- **Le vocabulaire catégoriel est déclaré, jamais déduit** — `preparation.CANONICAL_MODALITIES` fait foi,
   et l'encodeur le reçoit explicitement (`categories=[...]`, `handle_unknown="ignore"`). Une
   modalité absente du train ne peut pas faire disparaître sa colonne.
 - **Aucune inclusion ni exclusion ne se décide sur une relation mesurée avec la cible.** Les
@@ -212,6 +221,34 @@ modèle ne le regardent avant §12. Sa place est là, et non en §7, parce que l
 train/validation/test sans fuite ». Tout ce qui concerne la **validation** — validation croisée ou
 jeu de validation découpé dans le train, calibration sur prédictions *out-of-fold* ou sur une
 tranche dédiée — se décide dans la même section, **à l'intérieur du train**.
+
+**Le préprocessing appris reste dans le `Pipeline`, ré-ajusté à chaque pli.** Imputation, encodages
+et scaling se `fit` *à l'intérieur* de la validation croisée, jamais figés sur le train entier avant
+elle — sinon le pli de validation fuit dans l'ajustement. §9 **ajuste** ce `Pipeline` sur le train ;
+**§10 le sérialise** (C6) : l'artefact déployable se fige là, sur le modèle final éprouvé, pas avant.
+
+### Lexique — quatre objets, un seul mot « pipeline »
+
+« Pipeline » a servi pour quatre choses distinctes ; on les **nomme séparément**, on n'écrit jamais
+« pipeline » nu.
+
+- **La chaîne de préparation** (les *paliers*) - bronze → silver → gold, en pandas
+  (`preparation.transform`). **Déterministe** : aucune statistique apprise des données ; c'est de
+  l'ETL, **pas un `Pipeline` sklearn**. Vit en §5 (jeu de travail jetable) et §7 (paliers). « Rejouer
+  la chaîne depuis la source » la désigne, elle.
+- **Le préprocesseur** - un `ColumnTransformer` qui applique les transformations **apprises** :
+  imputation, one-hot / encodage ordinal, scaling. Il apprend ses paramètres (médiane, vocabulaire,
+  moyenne/écart-type) ⇒ `fit` sur le train seul, **après le split**. C'est ce que la table
+  gold/`Pipeline` ci-dessus nomme `Pipeline`.
+- **Le pipeline modèle** - un `Pipeline([préprocesseur, estimateur])` : préprocesseur **et** modèle
+  enchaînés en un objet `fit`/`predict` unique. C'est lui qu'on ajuste et qu'on valide en **§9** ; le
+  préprocesseur étant dedans, la validation croisée le ré-ajuste à chaque pli - **sans fuite**.
+- **Le pipeline déployé** - le pipeline modèle final, `fit`, éprouvé (§12), puis **sérialisé**
+  (`joblib`) et emballé d'un `predict()` + contrat d'entrée/sortie. L'artefact **déployable** de
+  **§10** (C6). Même objet que le pipeline modèle, figé pour la production.
+
+Les trois derniers sont **le même objet à trois stades** : le préprocesseur *dans* le pipeline
+modèle, `fit` en §9, sérialisé en §10. Seule la **chaîne** (premier point) est d'une autre nature.
 
 ## Sources de vérité
 
@@ -251,6 +288,18 @@ de code mort commenté.
 **Philosophie.** La logique réutilisable vit dans `src/decrochage_l1/`, testée ; le notebook
 l'appelle. Les données préparées sont **produites par le code**, jamais à la main. Clair avant
 malin ; type hints partout ; pandas vectorisé. `random_state` fixés.
+
+**Le code porte le verbe, le notebook porte le complément.** Une fonction testée dit *comment*
+mesurer, vérifier, transformer ; *quoi* vérifier et *pourquoi* se déclare dans le notebook, à la
+section où la mesure le fonde, et lui est **passé en paramètre**. Un module ne porte donc aucune
+table de jugement — thèmes, horizon de prédiction, bornes de domaine, exclusions : ce sont des
+propositions, et une proposition se défend là où le jury la lit. Test décisif : *une table qui porte
+une colonne « motif » est un journal de bord déguisé*.
+
+Deux exceptions, et elles se justifient d'elles-mêmes : ce que la **mise en forme applique** (le
+vocabulaire de recodage vit dans `data/preparation.py`, parce qu'il fabrique le jeu conformé), et ce
+qu'aucun choix ne gouverne (une constante de convention, une palette). **§10 industrialise** ce que le notebook a
+démontré — c'est là que les déclarations éprouvées se figent en artefact déployable, pas avant.
 
 **Dans le notebook, en plus.**
 

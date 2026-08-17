@@ -1,6 +1,6 @@
 import pandas as pd
 
-from decrochage_l1.data import profiling
+from decrochage_l1.data.utils import profiling_utils as profiling
 
 _OVERVIEW = [
     "colonne",

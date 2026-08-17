@@ -1,15 +1,12 @@
 """Profilage d'un CSV : encodage, délimiteur, types, motifs d'écriture, non-conformité.
 
-Le module ne reçoit qu'un chemin de fichier et déduit tout du contenu. Deux
-entrées :
-
-- `profile_csv` **mesure** — encodage, délimiteur, type réel de chaque colonne
-  (celui que pandas lui attribue spontanément), type sémantique (ce qu'elle
-  représente), motifs d'écriture, bornes des colonnes ordonnables (nombres et
-  dates), taux de manquants et de non-conformité ;
-- `conform` **met en forme** — nombres en nombres (virgule décimale et unité
-  collée comprises), dates en dates, textes ramenés à une forme de comparaison
-  (minuscules, sans accent, espaces normalisés).
+Le module déduit tout du contenu : il ne reçoit qu'un chemin de fichier. Il
+**mesure**, il ne transforme pas : `profile_csv` rend encodage, délimiteur, type
+réel de chaque colonne (celui que pandas lui attribue spontanément), type
+sémantique (ce qu'elle représente), motifs d'écriture, bornes des colonnes
+ordonnables (nombres et dates), taux de manquants et de non-conformité. La mise
+en forme pilotée par ce profil (`conform`) vit dans `data.preparation`, qui
+fabrique le jeu conformé ; ici, rien n'est modifié.
 
 Le profil se lit à deux niveaux, pour une seule mesure : `CsvProfile.overview()`
 en donne les huit indicateurs qui tiennent à l'écran, et le **rapport HTML** —
@@ -17,25 +14,23 @@ optionnel, délégué à `profiling_report` — les quatorze au complet, modalit
 énumérées.
 
 Aucune fonction ne supprime de ligne ou de colonne, ne fusionne deux modalités,
-ni ne remplace un manquant. La mise en forme reste réversible en information :
-`"12.0 km"` et `"12,0"` deviennent le même `12.0` parce qu'ils *disaient déjà*
-la même chose, là où rapprocher `"F"` et `"Femme"` serait un recodage.
+ni ne remplace un manquant : le module ne fait que constater.
 
-Les primitives de mise en forme (`normalize_text`, `parse_number`, `parse_date`)
-viennent de `data.cleaning`.
+Les primitives sur lesquelles s'appuie la mesure (`normalize_text`, `parse_number`,
+`parse_date`) viennent de `data.utils.cleaning_utils`.
 """
 
 import codecs
 import csv
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from itertools import groupby
 from pathlib import Path
 
 import pandas as pd
 
-from decrochage_l1.data import cleaning, profiling_report
+from decrochage_l1.data.utils import cleaning_utils as cleaning
+from decrochage_l1.data.utils import profiling_report
 
 # --- Détection d'encodage -----------------------------------------------------
 # UTF-32 avant UTF-16 : la marque UTF-32-LE (FF FE 00 00) commence par celle de
@@ -680,39 +675,6 @@ def pattern_breakdown(values: pd.Series, max_patterns: int = _MAX_PATTERNS) -> p
     )
 
 
-def check_order_constraints(
-    data: pd.DataFrame, constraints: Iterable[tuple[str, str]]
-) -> pd.DataFrame:
-    """Vérifie, **ligne à ligne**, des inégalités entre deux colonnes.
-
-    Le profil est colonne à colonne par construction : rien n'y montre qu'une
-    ligne porte plus de devoirs rendus que de devoirs attendus. Les bornes n'y
-    suffisent pas — deux colonnes de même maximum peuvent se croiser sur une
-    ligne, et un `max` égal de part et d'autre ne prouve rien.
-
-    Une ligne dont l'une des deux valeurs manque n'est **pas comparable** : elle
-    est comptée à part plutôt que tenue pour conforme, sans quoi un manquant
-    passerait pour une vérification réussie.
-
-    Les paires dont une colonne est absente du jeu sont ignorées — le même appel
-    sert des fichiers de schémas différents.
-    """
-    rows = []
-    for lower, upper in constraints:
-        if lower not in data.columns or upper not in data.columns:
-            continue
-        pair = data[[lower, upper]].dropna()
-        rows.append(
-            {
-                "contrainte": f"{lower} <= {upper}",
-                "n_comparables": len(pair),
-                "n_non_comparables": len(data) - len(pair),
-                "n_violations": int((pair[lower] > pair[upper]).sum()),
-            }
-        )
-    return pd.DataFrame(rows)
-
-
 def profile_csv(
     path: Path,
     report_dir: Path | None = None,
@@ -739,55 +701,3 @@ def profile_csv(
     return replace(
         profile, report_path=profiling_report.write(profile, breakdowns, patterns, report_dir)
     )
-
-
-# =============================================================================
-#  MISE EN FORME — pilotée par le profil
-# =============================================================================
-
-
-def conform(data: pd.DataFrame, profile: pd.DataFrame) -> pd.DataFrame:
-    """Uniformise l'**écriture** des valeurs, en s'appuyant sur le type déduit.
-
-    Colonne par colonne : les nombres sont lus en nombres (virgule décimale et
-    unité collée comprises), les dates en dates (tous formats rencontrés), les
-    textes ramenés à une forme de comparaison (minuscules, sans accent, espaces
-    normalisés). Sans ce typage, une colonne restée en texte n'a ni
-    distribution, ni quantile, ni corrélation.
-
-    Aucune modalité n'est fusionnée, aucune ligne ni colonne supprimée, aucun
-    manquant imputé.
-    """
-    semantic_types = profile.set_index("colonne")["type_semantique"].to_dict()
-    result = data.copy()
-
-    for column in result.columns:
-        # Les cellules vides deviennent des manquants explicites : sinon une
-        # colonne textuelle garderait une modalité « chaîne vide », comptée
-        # comme une catégorie à part entière dans toute exploration.
-        values = cleaning.blank_to_na(result[column])
-        match semantic_types.get(column):
-            case "entier":
-                # `Int64` (entier *nullable*) et non `int64` : une colonne
-                # entière comportant des manquants ne tient pas dans un entier
-                # natif, et basculerait en flottant — « 3 répondants » deviendrait
-                # « 3.0 », illisible dans un histogramme comme dans un tableau.
-                result[column] = cleaning.parse_number(values, detect_units(values)).astype("Int64")
-            case "decimal":
-                result[column] = cleaning.parse_number(values, detect_units(values))
-            case "date":
-                result[column] = cleaning.parse_date(values, detect_date_formats(values))
-            case "booleen":
-                # Un booléen déjà écrit 0/1 se type en nombre — aucune convention
-                # à choisir. Écrit en toutes lettres (« Oui », « N », « vrai »),
-                # il exigerait de décider laquelle des deux modalités vaut 1 :
-                # c'est un recodage, il n'appartient pas à la mise en forme.
-                numbers = cleaning.parse_number(values)
-                already_numeric = numbers.notna().sum() == len(_filled(values))
-                result[column] = (
-                    numbers.astype("Int64") if already_numeric else cleaning.normalize_text(values)
-                )
-            case _:
-                result[column] = cleaning.normalize_text(values)
-
-    return result
