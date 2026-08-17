@@ -1,6 +1,7 @@
-"""Tests de la mise en forme du cas d'usage — vocabulaire métier, conformation, transform."""
+"""Tests de la mise en forme du cas d'usage — vocabulaire métier, conformation, transform, gold."""
 
 import pandas as pd
+import pytest
 
 from decrochage_l1.data import preparation
 from decrochage_l1.data.utils import profiling_utils as profiling
@@ -116,3 +117,51 @@ def test_transform_ne_perd_aucune_colonne_ni_valeur_porteuse_d_information():
     assert (stats.n_columns, stats.n_rows) == (3, 2)
     assert result["note"].isna().sum() == 1  # un manquant reste manquant : aucune imputation
     assert result["constante"].nunique() == 1  # une variance nulle n'est pas un motif de retrait
+
+
+# --- build_gold : exclusions de principe et features dérivées -----------------
+
+
+def _silver_reduit() -> pd.DataFrame:
+    """Un silver minimal : de quoi vérifier les retraits et dériver les deux features."""
+    entier = lambda valeurs: pd.array(valeurs, dtype="Int64")  # noqa: E731
+    return pd.DataFrame(
+        {
+            "student_id": ["a", "b"],
+            "nb_devoirs_total": entier([10, 8]),
+            "nb_devoirs_rendus": entier([8, 8]),
+            "retards_rendus": entier([2, 0]),
+            "abandon": entier([1, 0]),
+        }
+    )
+
+
+def test_build_gold_retire_les_colonnes_passees_et_conserve_les_cibles():
+    """Le drop applique la liste ; une cible n'y figure jamais - le gold la garde pour §9."""
+    gold, res = preparation.build_gold(_silver_reduit(), ["student_id"])
+    assert "student_id" not in gold.columns
+    assert "abandon" in gold.columns
+    assert res.dropped == ("student_id",)
+
+
+def test_build_gold_derive_les_features_sur_le_total_attendu():
+    """taux_rendu et ratio_retards se rapportent tous deux à nb_devoirs_total."""
+    gold, res = preparation.build_gold(_silver_reduit(), [])
+    assert gold["taux_rendu"].tolist() == pytest.approx([0.8, 1.0])  # 8/10, 8/8
+    assert gold["ratio_retards"].tolist() == pytest.approx([0.2, 0.0])  # 2/10, 0/8
+    assert res.derived == ("taux_rendu", "ratio_retards")
+
+
+def test_build_gold_protege_la_division_par_zero_ou_absente():
+    """Un dénominateur nul ou manquant donne NaN, jamais inf - garde-fou de robustesse."""
+    entier = lambda valeurs: pd.array(valeurs, dtype="Int64")  # noqa: E731
+    silver = pd.DataFrame(
+        {
+            "nb_devoirs_total": entier([0, pd.NA]),
+            "nb_devoirs_rendus": entier([0, 3]),
+            "retards_rendus": entier([0, 1]),
+        }
+    )
+    gold, _ = preparation.build_gold(silver, [])
+    assert gold["taux_rendu"].isna().all()
+    assert gold["ratio_retards"].isna().all()

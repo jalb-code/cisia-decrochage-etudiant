@@ -29,8 +29,14 @@ mêmes sorties : ce qui a été exploré est bien ce qui est préparé.
 dernier : deux lignes qui ne différaient que par la casse, ou qui portaient `f` d'un
 côté et `femme` de l'autre, ne deviennent des jumelles qu'une fois l'écriture et le
 vocabulaire unifiés.
+
+`build_gold` fabrique ensuite le **palier gold** à partir du silver : elle retire les
+colonnes exclues *par principe* (liste déclarée et justifiée dans le notebook, passée
+en paramètre) et dérive quelques features ligne à ligne. C'est la seule étape de ce
+module qui **retire** des colonnes ; le silver, lui, n'en perd aucune.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import pandas as pd
@@ -156,4 +162,50 @@ def transform(
         n_duplicates_removed=len(conformed) - len(deduplicated),
         n_columns=deduplicated.shape[1],
         recoded_columns=recoded_columns,
+    )
+
+
+@dataclass(frozen=True)
+class GoldResult:
+    """Effet du passage silver → gold - les faits à afficher, sans référence au disque."""
+
+    n_rows: int
+    n_columns: int
+    dropped: tuple[str, ...]
+    derived: tuple[str, ...]
+
+
+def build_gold(
+    silver: pd.DataFrame, drop_columns: Sequence[str]
+) -> tuple[pd.DataFrame, GoldResult]:
+    """Applique les exclusions de principe et dérive les features ligne à ligne - le gold.
+
+    `drop_columns` - identifiants, fuites de fin de S1, variance nulle - est **déclaré
+    dans le notebook**, avec la décision qui fonde chaque retrait, et passé ici : le
+    module applique, il ne juge pas (aucune table de motifs dans le code). Les cibles
+    n'y figurent pas - le gold les conserve pour l'entraînement (le split X/y est en §9).
+
+    Deux features déterministes, calculées ligne à ligne et rapportées au **même**
+    dénominateur pour rester comparables d'un étudiant à l'autre :
+
+    - `taux_rendu`    = `nb_devoirs_rendus` / `nb_devoirs_total` ;
+    - `ratio_retards` = `retards_rendus`   / `nb_devoirs_total`.
+
+    Le dénominateur est le nombre de devoirs **attendus** (`nb_devoirs_total`), non le
+    nombre **rendus** : rapporté aux rendus, un unique devoir rendu en retard vaudrait
+    100 % - un artefact de faible base (justification au journal §7).
+    """
+    gold = silver.drop(columns=list(drop_columns))
+
+    # Division sûre : NaN là où le dénominateur manque ou vaut 0 - aucun cas dans le jeu
+    # reçu (min = 8), mais le garde-fou évite un `inf` si la source venait à changer.
+    denominator = gold["nb_devoirs_total"].where(gold["nb_devoirs_total"] > 0)
+    gold["taux_rendu"] = gold["nb_devoirs_rendus"] / denominator
+    gold["ratio_retards"] = gold["retards_rendus"] / denominator
+
+    return gold, GoldResult(
+        n_rows=len(gold),
+        n_columns=gold.shape[1],
+        dropped=tuple(drop_columns),
+        derived=("taux_rendu", "ratio_retards"),
     )
