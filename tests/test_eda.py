@@ -245,6 +245,15 @@ def test_correlation_pairs_trie_sur_la_valeur_absolue():
     assert pairs.loc[0, "correlation"] == -1.0
 
 
+def test_correlation_matrix_est_symetrique_et_sa_diagonale_vaut_un():
+    data = pd.DataFrame({"a": [1, 2, 3, 4], "b": [2, 4, 6, 8], "oppose": [4, 3, 2, 1]})
+    matrix = eda.correlation_matrix(data)
+
+    assert list(np.diag(matrix)) == [1.0, 1.0, 1.0]
+    assert matrix.loc["a", "b"] == 1.0  # monotone croissant parfait
+    assert matrix.loc["a", "oppose"] == -1.0  # une redondance négative garde son signe
+
+
 def test_cramers_v_vaut_un_sur_une_dependance_parfaite():
     left = pd.Series(["a", "a", "b", "b"])
     right = pd.Series([0, 0, 1, 1])
@@ -297,6 +306,25 @@ def test_cramers_v_matrix_est_symetrique_et_sa_diagonale_vaut_un():
 
     assert list(np.diag(matrix)) == [1.0, 1.0, 1.0]
     assert matrix.loc["a", "c"] == matrix.loc["c", "a"] == 1.0
+
+
+def test_association_matrix_choisit_la_mesure_selon_la_nature_de_la_paire():
+    data = pd.DataFrame(
+        {
+            "n1": [1.0, 2.0, 3.0, 4.0],
+            "n2": [2.0, 4.0, 6.0, 8.0],  # monotone parfait avec n1 -> |Spearman| = 1
+            "par_groupe": [5.0, 5.0, 9.0, 9.0],  # constant dans chaque modalite de c1 -> eta = 1
+            "c1": list("aabb"),
+            "c2": list("aabb"),  # identique a c1 -> V de Cramer = 1
+        }
+    )
+    matrix = eda.association_matrix(data, ["n1", "n2", "par_groupe"], ["c1", "c2"])
+
+    assert matrix.equals(matrix.T)  # symetrique
+    assert list(np.diag(matrix)) == [1.0] * 5
+    assert matrix.loc["n1", "n2"] == 1.0  # deux numeriques : |Spearman|
+    assert matrix.loc["c1", "c2"] == 1.0  # deux categorielles : V de Cramer
+    assert matrix.loc["par_groupe", "c1"] == 1.0  # numerique et categorielle : eta
 
 
 def test_categorical_association_situe_chaque_variable_par_rapport_au_bruit():
@@ -358,18 +386,65 @@ def test_group_spread_ignore_les_manquants_de_la_cible():
     assert eda.group_spread(notes, groupes) == 7.0  # 17 - 10
 
 
-def test_group_spread_table_confronte_chaque_cible_a_son_bruit():
-    # Une variable qui découpe exactement la note, une autre sans aucun rapport.
-    data = pd.DataFrame({"reelle": list("aabb") * 50, "plat": list("abab") * 50})
-    notes = pd.Series([10.0, 10.0, 18.0, 18.0] * 50)
-    table = eda.group_spread_table(
-        data, ["reelle", "plat"], {"note": notes}, n_permutations=99
+def test_correlation_ratio_vaut_un_quand_le_groupe_determine_la_valeur():
+    """Chaque groupe a une valeur constante : toute la variance est inter-groupes."""
+    groupes = pd.Series(list("aabb"))
+    valeurs = pd.Series([5.0, 5.0, 12.0, 12.0])
+    assert eda.correlation_ratio(valeurs, groupes) == 1.0
+
+
+def test_correlation_ratio_vaut_zero_quand_les_groupes_partagent_la_meme_moyenne():
+    groupes = pd.Series(list("aabb"))
+    valeurs = pd.Series([5.0, 15.0, 5.0, 15.0])  # moyenne 10 dans les deux groupes
+    assert eda.correlation_ratio(valeurs, groupes) == 0.0
+
+
+def test_correlation_ratio_egale_la_correlation_point_biseriale_sur_deux_groupes():
+    """Pour deux groupes, η vaut |corrélation de Pearson| entre la valeur et l'indicatrice 0/1."""
+    generator = np.random.default_rng(0)
+    groupes = pd.Series(generator.integers(0, 2, size=400))
+    valeurs = pd.Series(generator.normal(size=400) + groupes)  # décalage entre les deux groupes
+    eta = eda.correlation_ratio(valeurs, groupes)
+    r_pb = abs(float(np.corrcoef(valeurs, groupes)[0, 1]))
+    assert abs(eta - r_pb) < 1e-9
+
+
+def test_correlation_ratio_ignore_les_manquants_de_la_variable():
+    groupes = pd.Series(list("aabb"))
+    valeurs = pd.Series([5.0, None, 12.0, 12.0])
+    assert eda.correlation_ratio(valeurs, groupes) == 1.0
+
+
+def test_correlation_ratio_reste_sous_son_bruit_quand_les_groupes_nexpliquent_rien():
+    """Le seul énoncé défendable sur un η faible : il ne sort pas du bruit de permutation."""
+    generator = np.random.default_rng(0)
+    groupes = pd.Series(generator.choice(list("abcde"), size=1500))
+    valeurs = pd.Series(generator.normal(size=1500))  # sans aucun rapport avec les groupes
+    observe = eda.correlation_ratio(valeurs, groupes)
+    bruit = eda.correlation_ratio_noise(valeurs, groupes, n_permutations=100)
+
+    assert 0 < observe < bruit
+
+
+def test_association_with_choisit_la_mesure_selon_la_nature_de_la_variable():
+    """V de Cramér pour la catégorielle, η pour la numérique — toutes deux 0..1 face au bruit."""
+    boursier = pd.Series(["oui", "non"] * 200)
+    data = pd.DataFrame(
+        {
+            "proxy_cat": boursier.map({"oui": "x", "non": "y"}),  # ré-encode boursier
+            "proxy_num": boursier.map({"oui": 10.0, "non": 20.0}),  # sépare parfaitement
+            "sans_lien": list("abcde") * 80,  # période 5 contre 2 : indépendante de boursier
+        }
+    )
+    table = eda.association_with(
+        data, ["proxy_cat", "proxy_num", "sans_lien"], boursier, n_permutations=99
     ).set_index("colonne")
 
-    assert table.loc["reelle", "ecart_observe"] == 8.0
-    assert table.loc["reelle", "p_permutation"] == 0.01
-    assert table.loc["plat", "ecart_observe"] == 0.0
-    assert table.loc["plat", "p_permutation"] == 1.0
+    assert table.loc["proxy_cat", "mesure"] == "V de Cramér"
+    assert table.loc["proxy_num", "mesure"] == "η"
+    assert table.loc["proxy_cat", "association"] == 1.0
+    assert table.loc["proxy_num", "association"] == 1.0
+    assert table.loc["sans_lien", "association"] < table.loc["sans_lien", "bruit_95"]
 
 
 def test_target_rate_by_modality_garde_les_manquants_et_leffectif():
@@ -488,3 +563,25 @@ def test_plot_heatmap_annote_chaque_cellule():
     figure = eda.plot_heatmap(matrix, diverging=False, annotate=True)
     textes = [text.get_text() for text in figure.axes[0].texts]
     assert textes == ["1.00", ".50", ".50", "1.00"]
+
+
+def _frame_avec_trous() -> pd.DataFrame:
+    """Trois colonnes trouées, dont deux qui manquent ensemble — de quoi tester les cartes."""
+    rng = np.random.default_rng(0)
+    frame = pd.DataFrame({"a": rng.random(120), "b": rng.random(120), "c": rng.random(120)})
+    frame.loc[frame.index[:50], ["b", "c"]] = np.nan  # b et c se donnent rendez-vous
+    frame.loc[frame.index[100:], "a"] = np.nan
+    return frame
+
+
+def test_plot_missing_matrix_porte_la_grille_et_le_sparkline():
+    figure = eda.plot_missing_matrix(_frame_avec_trous())
+    # missingno rend deux axes : la grille de nullité (une image) et le sparkline à droite.
+    assert any(axis.images for axis in figure.axes)
+
+
+def test_plot_missing_heatmap_ne_retient_que_les_colonnes_trouees():
+    figure = eda.plot_missing_heatmap(_frame_avec_trous())
+    # `a` ne co-manque avec personne ici ; b et c, à nullité liée, portent la carte.
+    etiquettes = {text.get_text() for text in figure.axes[0].get_xticklabels()}
+    assert {"b", "c"} <= etiquettes

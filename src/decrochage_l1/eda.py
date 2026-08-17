@@ -193,9 +193,7 @@ def numeric_overview(data: pd.DataFrame) -> pd.DataFrame:
             "moyenne": numbers.mean().round(2).to_numpy(),
             "ecart_type": numbers.std().round(2).to_numpy(),
             "min": numbers.min().round(2).to_numpy(),
-            "q1": numbers.quantile(0.25).round(2).to_numpy(),
             "mediane": numbers.median().round(2).to_numpy(),
-            "q3": numbers.quantile(0.75).round(2).to_numpy(),
             "max": numbers.max().round(2).to_numpy(),
             "asymetrie": numbers.skew().round(2).to_numpy(),
         }
@@ -606,6 +604,15 @@ def matrix_pairs(
     return frame.set_axis(["variable_1", "variable_2", name], axis=1)
 
 
+def correlation_matrix(data: pd.DataFrame, method: str = "spearman") -> pd.DataFrame:
+    """Matrice de corrélation entre colonnes numériques — le pendant de `cramers_v_matrix`.
+
+    Spearman par défaut : un lien monotone, robuste aux queues repérées par la
+    règle de Tukey, là où Pearson ne verrait que le linéaire.
+    """
+    return as_float(data).corr(method=method).round(3)
+
+
 def correlation_pairs(
     data: pd.DataFrame, method: str = "spearman", threshold: float = 0.0
 ) -> pd.DataFrame:
@@ -788,54 +795,173 @@ def _spread_draws(
     )
 
 
-def group_spread_noise(
+def _eta_from_codes(numbers: np.ndarray, codes: np.ndarray, n_groups: int) -> float:
+    """Rapport de corrélation η à partir de codes de groupe — racine de la variance inter-groupes.
+
+    η² est la part de la variance totale de `numbers` portée par les écarts **entre**
+    moyennes de groupe : `SS_inter / SS_total`. La forme par codes est celle que la
+    permutation rejoue des centaines de fois, comme pour le V de Cramér.
+    """
+    valid = ~np.isnan(numbers)
+    values, groups = numbers[valid], codes[valid]
+    if values.size < 2:
+        return 0.0
+    grand_mean = values.mean()
+    total_ss = float(((values - grand_mean) ** 2).sum())
+    if total_ss == 0.0:  # variable constante : aucune variance à répartir entre les groupes
+        return 0.0
+    sums = np.bincount(groups, weights=values, minlength=n_groups)
+    counts = np.bincount(groups, minlength=n_groups)
+    group_means = np.divide(sums, counts, out=np.zeros(n_groups), where=counts > 0)
+    between_ss = float((counts * (group_means - grand_mean) ** 2).sum())
+    return math.sqrt(between_ss / total_ss)
+
+
+def correlation_ratio(values: pd.Series, groups: pd.Series) -> float:
+    """Rapport de corrélation η entre une numérique et une catégorielle, entre 0 et 1.
+
+    Le pendant numérique du V de Cramér, et l'analogue « continu » de `group_spread` :
+    la **part de la variance** de `values` qu'explique l'appartenance aux modalités de
+    `groups`. 0 quand tous les groupes partagent la même moyenne (aucune séparation), 1
+    quand `values` est constante dans chaque groupe (le groupe la détermine). Pour deux
+    groupes, η vaut la valeur absolue de la corrélation point-bisériale.
+
+    Là où `group_spread` rend l'écart dans l'unité de la variable - « 3 h de travail » -, η le
+    ramène sur une échelle 0-1 comparable d'une variable à l'autre : c'est ce qui permet de
+    juger sur un même barème un écart en heures, un écart en kilomètres et un V de Cramér,
+    comme l'exige le contrôle du ré-encodage d'un attribut protégé (§4.4, D14).
+
+    Rend 0 pour un groupe unique ou une variable constante, où aucune séparation n'est
+    définissable. À lire contre son plafond de bruit (`correlation_ratio_noise`) : η est lui
+    aussi biaisé vers le haut, d'autant plus que les groupes sont nombreux et peu peuplés.
+    """
+    codes, n_groups = _codes(groups)
+    if n_groups < 2:
+        return 0.0
+    return _eta_from_codes(as_float(values).to_numpy(), codes, n_groups)
+
+
+def _eta_draws(
+    values: pd.Series, groups: pd.Series, n_permutations: int, random_state: int
+) -> np.ndarray:
+    """Tirages de η sous permutation des groupes — effectifs de groupe intacts, lien détruit."""
+    codes, n_groups = _codes(groups)
+    numbers = as_float(values).to_numpy()
+    if n_groups < 2:
+        return np.zeros(n_permutations)
+    generator = np.random.default_rng(random_state)
+    return np.array(
+        [
+            _eta_from_codes(numbers, generator.permutation(codes), n_groups)
+            for _ in range(n_permutations)
+        ]
+    )
+
+
+def correlation_ratio_noise(
     values: pd.Series,
     groups: pd.Series,
     n_permutations: int = 500,
     random_state: int = 0,
     quantile: float = 0.95,
 ) -> float:
-    """Plafond de bruit de `group_spread` — son quantile sous permutation des groupes.
+    """Plafond de bruit de η — son quantile sous permutation des groupes.
 
-    Même raisonnement que `cramers_v_noise`, et même nécessité : plus une variable
-    a de modalités et plus certaines sont peu peuplées, plus le hasard écarte
-    naturellement les moyennes. Sans cet étalon, un écart de cinq points sur huit
-    groupes passerait pour un effet.
+    Même raisonnement que `cramers_v_noise` : ce que η vaut encore une fois le lien détruit
+    est ce que le hasard produit à cette taille d'échantillon et à ce découpage en groupes. Un
+    η observé sous ce plafond est indiscernable du hasard.
     """
-    return float(np.quantile(_spread_draws(values, groups, n_permutations, random_state), quantile))
+    return float(np.quantile(_eta_draws(values, groups, n_permutations, random_state), quantile))
 
 
-def group_spread_table(
+def association_matrix(
     data: pd.DataFrame,
-    columns: list[str],
-    targets: dict[str, pd.Series],
+    numeric: list[str],
+    categorical: list[str],
+    method: str = "spearman",
+) -> pd.DataFrame:
+    """Matrice d'association 0→1 **tous types confondus** — la mesure suit la nature de la paire.
+
+    Une seule carte là où `cramers_v_matrix` et `correlation_matrix` en demandent deux, au prix
+    d'une convention : chaque cellule porte une **magnitude** entre 0 (indépendance) et 1
+    (déterminisme), obtenue par la mesure adaptée à la paire —
+
+    - entre deux **numériques** → valeur absolue de la corrélation (Spearman par défaut) ;
+    - entre deux **catégorielles** → V de Cramér ;
+    - entre une **numérique et une catégorielle** → rapport de corrélation η.
+
+    Elle comble l'angle mort des deux matrices par type : les couples numérique/catégorielle,
+    qu'aucune ne mesure. Trois réserves, car la commodité d'une échelle unique est trompeuse : les
+    trois mesures ne se comparent pas terme à terme (un V de 0,3 ne vaut pas une corrélation de
+    0,3) ; le **signe** du bloc numérique disparaît - le récupérer impose `correlation_matrix` ; V
+    et η sont biaisés vers le haut à mesure que les modalités se multiplient.
+    """
+    names = list(numeric) + list(categorical)
+    is_numeric = set(numeric)
+    # bloc numérique pré-calculé en une passe ; NaN (variable constante) ramené à 0
+    spearman = as_float(data[numeric]).corr(method=method).abs() if numeric else None
+    matrix = pd.DataFrame(1.0, index=names, columns=names)
+    for i, first in enumerate(names):
+        for second in names[i + 1 :]:
+            if first in is_numeric and second in is_numeric:
+                value = spearman.loc[first, second]
+                value = 0.0 if pd.isna(value) else float(value)
+            elif first not in is_numeric and second not in is_numeric:
+                value = cramers_v(data[first], data[second])
+            else:
+                num, cat = (first, second) if first in is_numeric else (second, first)
+                value = correlation_ratio(data[num], data[cat])
+            matrix.loc[first, second] = matrix.loc[second, first] = round(value, 3)
+    return matrix
+
+
+def association_with(
+    data: pd.DataFrame,
+    features: list[str],
+    target: pd.Series,
     n_permutations: int = 500,
     random_state: int = 0,
 ) -> pd.DataFrame:
-    """Écart entre modalités, plafond de bruit et p-valeur, pour chaque colonne et chaque cible.
+    """Force d'association de chaque variable de `features` avec la catégorielle `target`.
 
-    Un tableau et non deux : les deux cibles se lisent l'une sous l'autre pour la
-    même variable, ce qui évite de conclure d'une seule qu'une variable ne porte
-    rien. Les valeurs sont dans l'unité de la cible passée — le notebook décide
-    donc s'il transmet un taux (en points de pourcentage) ou une note.
+    Sert le contrôle du ré-encodage d'un attribut protégé (§4.4, D14) : `target` est ici
+    `boursier`, et chaque proxy candidat est mesuré contre lui pour décider s'il le ré-encode.
+    Deux natures de variable, deux mesures, toutes deux **entre 0 (indépendance) et 1
+    (déterminisme)**, donc lisibles sur un même barème :
+
+    - variable **catégorielle** → V de Cramér ;
+    - variable **numérique** → rapport de corrélation η.
+
+    Chaque mesure est jugée contre **son propre** plafond de bruit par permutation (`bruit_95`)
+    et rend sa p-valeur : les deux échelles ne se comparent pas dans l'absolu, mais chaque
+    variable se situe par rapport à ce que le hasard produirait à sa place. Sur un grand
+    échantillon, la p-valeur passe presque toujours le seuil ; c'est **la magnitude** de
+    l'association, non sa significativité, qui dit si le proxy ré-encode l'attribut protégé.
     """
     rows = []
-    for column in columns:
-        for name, target in targets.items():
-            observed = group_spread(target, data[column])
-            draws = _spread_draws(target, data[column], n_permutations, random_state)
-            ceiling, p_value = _permutation_summary(observed, draws)
-            rows.append(
-                {
-                    "colonne": column,
-                    "cible": name,
-                    "n_groupes": int(_as_modality(data[column]).nunique()),
-                    "ecart_observe": round(observed, 3),
-                    "bruit_95": round(ceiling, 3),
-                    "p_permutation": round(p_value, 4),
-                }
-            )
-    return pd.DataFrame(rows)
+    for column in features:
+        if pd.api.types.is_numeric_dtype(data[column]):
+            nature, mesure = "numérique", "η"
+            observed = correlation_ratio(data[column], target)
+            draws = _eta_draws(data[column], target, n_permutations, random_state)
+        else:
+            nature, mesure = "catégorielle", "V de Cramér"
+            observed = cramers_v(data[column], target)
+            draws = _cramers_v_draws(data[column], target, n_permutations, random_state)
+        ceiling, p_value = _permutation_summary(observed, draws)
+        rows.append(
+            {
+                "colonne": column,
+                "type": nature,
+                "mesure": mesure,
+                "association": round(observed, 3),
+                "bruit_95": round(ceiling, 3),
+                "p_permutation": round(p_value, 4),
+            }
+        )
+    return pd.DataFrame(
+        rows, columns=["colonne", "type", "mesure", "association", "bruit_95", "p_permutation"]
+    ).sort_values("association", ascending=False, ignore_index=True)
 
 
 def target_rate_by_modality(
@@ -1229,6 +1355,50 @@ def plot_heatmap(
                 )
     figure.tight_layout()
     return figure
+
+
+def plot_missing_matrix(
+    data: pd.DataFrame, size: tuple[float, float] = (7.4, 3.6), fontsize: int = 8
+) -> Figure:
+    """Matrice de nullité (missingno) — une colonne par variable, une ligne par observation.
+
+    Présent en teinte pleine, manquant en clair ; la colonne de droite - le
+    *sparkline* - résume la complétude de chaque ligne. Des bandes claires qui
+    s'alignent sur plusieurs colonnes trahissent des trous qui se donnent
+    rendez-vous (un thème entier absent d'un même dossier) ; des bandes qui se
+    dispersent disent l'inverse. L'ordre des lignes est celui du jeu, non trié : si
+    l'absence suit l'ordre de saisie, seul l'ordre d'origine le montre. C'est la
+    lecture visuelle de ce que `plot_missing_heatmap` chiffre par paires.
+
+    `missingno` est importé à l'appel : le module n'en dépend qu'ici, jamais au
+    chargement, et le pipeline déployé (§10) ne le tire pas.
+    """
+    import missingno as msno
+    from matplotlib.colors import to_rgb
+
+    axis = msno.matrix(data, figsize=size, color=to_rgb(PALETTE["series_1"]), fontsize=fontsize)
+    return axis.get_figure()
+
+
+def plot_missing_heatmap(
+    data: pd.DataFrame, size: tuple[float, float] = (6.5, 5.5), fontsize: int = 8
+) -> Figure:
+    """Carte de corrélation de nullité (missingno) — deux trous se donnent-ils rendez-vous ?
+
+    Sur les indicateurs de manquant, la corrélation vaut le coefficient phi : +1
+    quand deux colonnes manquent toujours ensemble, -1 quand l'une exclut l'autre,
+    proche de 0 quand leurs absences sont sans rapport. C'est la lecture par paires
+    de ce que `plot_missing_matrix` donne à voir sur la ligne entière. `missingno`
+    n'y fait entrer que les colonnes à nullité variable - une colonne jamais ou
+    toujours manquante n'a pas de corrélation définissable.
+
+    L'échelle divergente du module remplace le `RdBu` par défaut : le gris central
+    doit se lire « rien », en cohérence avec les autres cartes de chaleur.
+    """
+    import missingno as msno
+
+    axis = msno.heatmap(data, figsize=size, cmap=DIVERGING, fontsize=fontsize)
+    return axis.get_figure()
 
 
 def show(figure: Figure) -> None:

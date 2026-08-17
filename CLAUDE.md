@@ -90,50 +90,64 @@ elle acte un produit, une ligne `✅` de clôture.
 - **Un titre de sous-section est un groupe nominal** — `## 5.2 Profilage des colonnes`. Une à deux
   phrases d'intention sont admises avant la sortie ; on évite seulement d'interpréter à l'avance une
   sortie qu'on n'a pas encore montrée.
-- **Voix** : encarts et phrases d'intention à la **première personne** ; `Constat ⇒ Décision` et
+- **Voix** : encarts et phrases d'intention à la **première personne** ; **puces de lecture** et
   `✅` impersonnels.
 
 ### Blocs de lecture (patrons recommandés)
 
-Sous une sortie, un **bloc de lecture** court ou rien. Les gabarits ci-dessous donnent la
-régularité ; ce sont des patrons recommandés, pas un carcan à compter.
+Sous une sortie, un **bloc de lecture** court ou rien. Il s'écrit en **puces `-` de prose** : ni
+marqueur `🔍`, ni flèche `⇒`. Le constat et sa conséquence tiennent dans **une même phrase**, la
+conséquence rattachée par `:`, une virgule ou une incise ` - `. Les gabarits ci-dessous donnent la
+régularité ; ce sont des patrons, pas un carcan à compter.
 
 ```
-**Constat ⇒ Décision**
+### Interprétation
 
-- **40 paires strictement identiques** sur les 33 colonnes ⇒ Supprimer les lignes en double
-- **Erreurs de format ⇒ à normaliser** - *la valeur est juste, l'écriture non*
-  - `date_inscription` (3 formats) · `taux_presence_pct` (« % » + virgule)
+Les rapports de profilage font ressortir trois défauts : formats à normaliser, synonymes à
+recoder, et - contrôle des bornes fait - aucune valeur hors domaine.
 
-**⇒ Rien à mettre en forme.**
+#### Fichier `catalogue_formations_V5`
+
+- `filiere` compte **8 valeurs pour 8 lignes** : clé primaire, retenue comme clé de jointure.
+- Les autres colonnes ne sont que des attributs de la filière - non jointes au jeu étudiant (D08, §3.5).
+
+#### Fichier `decrochage_etudiants_complet_V5`
+
+- **40 lignes strictement identiques** sur les 33 colonnes : des doublons exacts, à supprimer.
+- **Formats hétérogènes à normaliser** - la valeur est juste, l'écriture non. Deux familles :
+  - des nombres restés en texte : `date_inscription` (3 formats) · `taux_presence_pct` (« % » + virgule) ;
+  - des catégorielles éclatées par la casse : `filiere` (31→8) · `bac_type` (12→7).
 ```
 
-Le gras nomme le **défaut** (« Erreurs de format », « Valeurs hétérogènes ») plutôt que l'objet ou
-l'action, et s'arrête au groupe qui porte le chiffre. La glose italique oppose deux termes. On évite
-d'empiler plus de deux niveaux de puces.
+Le gras nomme le **défaut ou le verdict** (« Formats hétérogènes », « 40 lignes strictement
+identiques ») plutôt que l'objet ou l'action, et s'arrête au groupe qui porte le chiffre - jamais la
+puce entière. La conséquence vit **dans la phrase** (« …, à supprimer », « retenue comme clé de
+jointure ») ; ce qui repose sur une décision antérieure la cite (`Dxx`, §N). Une phrase d'ouverture
+peut poser le constat d'ensemble ; des `####` séparent les objets. On évite d'empiler plus de deux
+niveaux de puces.
 
 ```
-**Cohérence à vérifier ⇒ à faire en §5.3**
+**Cohérence à vérifier - à faire en §5.3**
 
 - `student_id`, `id_dossier` : un même identifiant porte-t-il deux lignes **divergentes** ?
 
-**Questions reportées ⇒ à traiter lors de l'EDA §6**
+**Questions reportées - à traiter lors de l'EDA §6**
 
 - Valeurs absentes - 10 colonnes, jusqu'à 49,29 % : mécanisme (refus, MAR…) à qualifier
 ```
 
-Un report est un **en-tête gras portant sa destination**, suivi d'une à trois puces — jamais un
-tableau. Toutes les annonces de contrôle d'une section sont **groupées en un seul endroit**, sous la
-sortie qui les a fait naître. Un fait que la section ne tranche pas descend ici avec son chiffre,
-il ne prend jamais la forme d'un `Constat ⇒ Décision`.
+Un report est un **en-tête gras portant sa destination** (rattachée par ` - `), suivi d'une à trois
+puces — jamais un tableau. Toutes les annonces de contrôle d'une section sont **groupées en un seul
+endroit**, sous la sortie qui les a fait naître. Un fait que la section ne tranche pas descend ici
+avec son chiffre, il ne prend jamais la forme d'une puce de constat tranché.
 
 ```
-✅ 100 % d'appariement ⇒ La jointure est possible
+✅ Jeu de travail cohérent - prêt pour l'EDA §6
 ✅ Palier **Silver** construit
 ```
 
 Une cellule, une ligne, sans point final. Le `✅` de clôture de section est le plus court : il acte
-le produit, sans chiffre.
+le produit, sans chiffre, la précision rattachée par ` - `.
 
 ```
 > 🔧 **Comment je m'y prends** - …     une fois, en tête de section : comment le matériau est produit
@@ -146,7 +160,7 @@ Les encarts 🔧 et 🔎 sont les gabarits habituels ; ce qu'un encart dit ne se
 
 | Signe | Emploi, et lui seul |
 |---|---|
-| `⇒` | `constat ⇒ conséquence`, espacé. La conséquence est en minuscule (« à normaliser », « variance nulle ») ; l'impératif capitalisé est réservé à une action immédiate |
+| `⇒` | **réservé au journal de bord** (amorce de décision après l'en-tête `[Dxx]`) ; **proscrit dans les blocs de lecture**, où la conséquence tient dans la phrase |
 | `→` | variation avant→après, sans espaces : `` `filiere` (31→8) `` |
 | ` - ` | toute incise ; **jamais** `—` ni `–` |
 | `·` | sépare des groupes de même nature sur **une seule ligne** — jamais une liste à puces |
@@ -168,7 +182,7 @@ qu'il porte doit apparaître dans une sortie de cellule.
 
 ### Rapport au journal de bord
 
-**Le bloc `Constat ⇒ Décision` n'est pas le journal de bord.** Il porte la conséquence *mécanique*
+**Le bloc de lecture n'est pas le journal de bord.** Il porte la conséquence *mécanique*
 d'une mesure — celle qui n'a pas d'alternative défendable. Dès qu'un choix avait une alternative
 sérieuse, il descend au **journal de bord** de la section, sous le gabarit de la règle 1. Une
 section qui n'arbitre rien (§5) n'a pas de journal.

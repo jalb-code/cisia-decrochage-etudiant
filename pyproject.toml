@@ -26,6 +26,7 @@ dev = [
     "pre-commit>=4.6.0",
     "ipykernel>=7.3.0",
     "nbconvert>=7.17.1",
+    "missingno>=0.5.2",
 ]
 
 # `src/` layout : indiquer explicitement le package à empaqueter.
@@ -52,6 +53,10 @@ extend-exclude = [".venv*", "venv*", "dist", "build"]
 # D1xx = présence des docstrings (pydocstyle) : module + classe/méthode/fonction publiques,
 #        sans imposer leur mise en forme : docstrings en français, commentaires réservés au non-évident.
 select = ["E", "F", "I", "UP", "B", "SIM", "C4", "N", "RUF", "D100", "D101", "D102", "D103"]
+
+# Symboles mathématiques employés comme tels (ρ de Spearman, η rapport de corrélation) :
+# les autoriser plutôt que RUF001/RUF003 ne les prenne pour des lettres latines ambiguës.
+allowed-confusables = ["ρ", "η"]
 
 # Les fonctions de test se documentent par leur nom (`test_...`) et leurs assertions :
 # ne pas exiger de docstring de module ni de fonction dans `tests/`.
