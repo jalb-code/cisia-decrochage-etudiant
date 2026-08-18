@@ -105,6 +105,40 @@ def _single_row_frame(row: Mapping | pd.Series | pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame([dict(row)])
 
 
+def _aggregate(
+    per_output: np.ndarray,
+    sources: list[str],
+    intercept: float,
+    themes: Mapping[str, str] | None,
+) -> Contributions:
+    """Replie les contributions par colonne de sortie vers les variables, puis les thèmes."""
+    by_variable: dict[str, float] = {}
+    for source, value in zip(sources, per_output, strict=True):
+        by_variable[source] = by_variable.get(source, 0.0) + float(value)
+
+    by_theme: dict[str, float] = {}
+    for variable, value in by_variable.items():
+        theme = themes.get(variable, UNGROUPED) if themes else UNGROUPED
+        by_theme[theme] = by_theme.get(theme, 0.0) + value
+
+    total_logit = intercept + float(per_output.sum())
+    return Contributions(
+        base_logit=intercept,
+        by_variable=by_variable,
+        by_theme=by_theme,
+        total_logit=total_logit,
+        probability=_sigmoid(total_logit),
+    )
+
+
+def _coef_intercept(pipeline: Pipeline) -> tuple[np.ndarray, float]:
+    """Coefficients et ordonnée à l'origine du dernier maillon (modèle linéaire)."""
+    model = pipeline[-1]
+    coef = np.asarray(model.coef_, dtype="float64").ravel()
+    intercept = float(np.asarray(model.intercept_, dtype="float64").ravel()[0])
+    return coef, intercept
+
+
 def contributions(
     pipeline: Pipeline,
     row: Mapping | pd.Series | pd.DataFrame,
@@ -125,33 +159,34 @@ def contributions(
     if len(frame) != 1:
         raise ValueError("contributions() attend un dossier unique (une ligne).")
 
-    model = pipeline[-1]
+    coef, intercept = _coef_intercept(pipeline)
     transformed = np.asarray(pipeline[:-1].transform(frame), dtype="float64")[0]
-
-    coef = np.asarray(model.coef_, dtype="float64").ravel()
-    intercept = float(np.asarray(model.intercept_, dtype="float64").ravel()[0])
     if coef.shape[0] != transformed.shape[0]:
         raise ValueError("coefficients et sortie du préprocesseur de tailles différentes.")
 
-    per_output = coef * transformed
     sources = source_columns(_column_transformer(pipeline))
-    if len(sources) != per_output.shape[0]:
-        raise ValueError("cartographie des colonnes source incohérente avec les coefficients.")
+    return _aggregate(coef * transformed, sources, intercept, themes)
 
-    by_variable: dict[str, float] = {}
-    for source, value in zip(sources, per_output, strict=True):
-        by_variable[source] = by_variable.get(source, 0.0) + float(value)
 
-    by_theme: dict[str, float] = {}
-    for variable, value in by_variable.items():
-        theme = themes.get(variable, UNGROUPED) if themes else UNGROUPED
-        by_theme[theme] = by_theme.get(theme, 0.0) + value
+def batch_contributions(
+    pipeline: Pipeline,
+    frame: pd.DataFrame,
+    *,
+    themes: Mapping[str, str] | None = None,
+) -> list[Contributions]:
+    """Décompose tout un lot d'un coup : **une seule** transformation, une multiplication.
 
-    total_logit = intercept + float(per_output.sum())
-    return Contributions(
-        base_logit=intercept,
-        by_variable=by_variable,
-        by_theme=by_theme,
-        total_logit=total_logit,
-        probability=_sigmoid(total_logit),
-    )
+    Le préprocesseur transforme l'ensemble du lot en une passe, puis les contributions se
+    lisent ligne par ligne dans la matrice `coef · z` — la même décomposition exacte que
+    `contributions`, sans re-transformer dossier par dossier (le calcul d'une campagne passe
+    ainsi de minutes à une fraction de seconde).
+    """
+    coef, intercept = _coef_intercept(pipeline)
+    transformed = np.asarray(pipeline[:-1].transform(frame), dtype="float64")
+    if coef.shape[0] != transformed.shape[1]:
+        raise ValueError("coefficients et sortie du préprocesseur de tailles différentes.")
+
+    sources = source_columns(_column_transformer(pipeline))
+    return [
+        _aggregate(coef * transformed[i], sources, intercept, themes) for i in range(len(frame))
+    ]

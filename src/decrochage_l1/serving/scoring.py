@@ -1,0 +1,106 @@
+"""Orchestration du scoring : de lignes validées aux résultats, sur les deux modèles.
+
+Assemble ce que le service sait faire — probabilité d'`abandon`, note `moyenne_finale`
+estimée, contributions explicatives, dérive de campagne — à partir d'un `Bundle` chargé et
+d'un lot **déjà validé et conformé** (`validation`). Le calcul est **groupé** : une seule
+prédiction vectorisée par modèle, une seule passe d'explicabilité.
+
+Le seuil de décision est **passé** (défaut de la fiche ou surcharge d'exploitation) ; la
+sortie secondaire est **bornée [0 ; 20]** (le régresseur linéaire peut extrapoler au-delà) ;
+l'indicateur « signalé » n'est calculé que si l'exploitation choisit de l'exposer.
+"""
+
+from dataclasses import dataclass
+
+import numpy as np
+import pandas as pd
+
+from decrochage_l1.serving import drift, explain
+from decrochage_l1.serving.explain import Contributions
+from decrochage_l1.serving.store import Bundle
+
+MOYENNE_MIN, MOYENNE_MAX = 0.0, 20.0
+
+
+@dataclass(frozen=True)
+class DossierScore:
+    """Résultat d'un dossier : probabilité, note estimée, indicateur et explicabilité."""
+
+    reference: str | None
+    probability: float
+    moyenne_finale: float
+    signaled: bool | None  # None quand l'indicateur n'est pas exposé (probabilité seule)
+    contributions: Contributions
+
+
+def _model_features(bundle: Bundle) -> list[str]:
+    """Colonnes attendues par le modèle, dans l'ordre de son entraînement."""
+    return list(bundle.classifier.feature_names_in_)
+
+
+def score(
+    bundle: Bundle,
+    accepted: pd.DataFrame,
+    references: list[str | None],
+    *,
+    threshold: float,
+    expose_indicator: bool,
+) -> list[DossierScore]:
+    """Score un lot conformé : probabilité, note bornée, indicateur optionnel, contributions.
+
+    `accepted` porte au moins les colonnes du modèle (issues de la validation) ; on les
+    sélectionne dans l'ordre attendu avant prédiction. Rien n'est réordonné en sortie : les
+    résultats reviennent dans l'ordre reçu — ordonner par risque serait produire une liste de
+    priorités, ce que le dispositif laisse à l'équipe pédagogique.
+    """
+    if len(accepted) == 0:
+        return []
+
+    features = accepted[_model_features(bundle)]
+    probability = bundle.classifier.predict_proba(features)[:, 1]
+    moyenne = np.clip(bundle.regressor.predict(features), MOYENNE_MIN, MOYENNE_MAX)
+    contributions = explain.batch_contributions(
+        bundle.classifier, features, themes=bundle.contract.facts.themes
+    )
+
+    return [
+        DossierScore(
+            reference=references[i],
+            probability=float(probability[i]),
+            moyenne_finale=float(moyenne[i]),
+            signaled=bool(probability[i] >= threshold) if expose_indicator else None,
+            contributions=contributions[i],
+        )
+        for i in range(len(accepted))
+    ]
+
+
+def assess_drift(bundle: Bundle, accepted: pd.DataFrame) -> drift.CampaignDrift:
+    """Mesure la dérive du lot contre la distribution de référence de la fiche.
+
+    Sans référence embarquée, la dérive est déclarée non mesurable — les prédictions restent
+    servies : refuser de scorer parce que la surveillance manque punirait la campagne pour un
+    défaut d'outillage. Seuils et effectif minimal viennent de la fiche.
+    """
+    facts, defaults = bundle.contract.facts, bundle.contract.defaults
+    reference = facts.drift_reference
+    if reference is None:
+        return drift.CampaignDrift(
+            mesurable=False,
+            motif="aucune distribution de référence dans la fiche",
+            variables=(),
+            psi_max=float("nan"),
+            verdict=drift.STABLE,
+        )
+
+    numeric = [c for c in facts.numeric if c in accepted.columns and c in reference.columns]
+    categorical = [c for c in facts.categorical if c in accepted.columns and c in reference.columns]
+    return drift.assess(
+        reference,
+        accepted,
+        numeric=numeric,
+        categorical=categorical,
+        seuil_surveillance=defaults.drift_surveillance,
+        seuil_alerte=defaults.drift_alerte,
+        effectif_min=defaults.drift_effectif_min,
+    )

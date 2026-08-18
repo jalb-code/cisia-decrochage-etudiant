@@ -88,6 +88,16 @@ allowed-confusables = ["ρ", "η", "σ", "×"]
 # Regroupe les imports du code interne dans un bloc distinct des paquets tiers.
 known-first-party = ["decrochage_l1"]
 
+[tool.ruff.lint.flake8-bugbear]
+# Idiome FastAPI : `Depends`/`Body`/`Query`/`Header` en valeurs par défaut d'arguments
+# sont l'API prévue du framework, pas le piège B008 des appels mutables partagés.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Body",
+    "fastapi.Query",
+    "fastapi.Header",
+]
+
 [tool.ruff.format]
 quote-style = "double"
 
