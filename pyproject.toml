@@ -79,10 +79,10 @@ allowed-confusables = ["ρ", "η", "σ", "×"]
 # Les fonctions de test se documentent par leur nom (`test_...`) et leurs assertions :
 # ne pas exiger de docstring de module ni de fonction dans `tests/`.
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D100", "D103"]
-# X / y : notation standard du couple (features, cible) en apprentissage - conservée.
+# X / y : notation standard du couple (features, cible) en apprentissage - conservée dans
+# tout test qui manipule un jeu d'entraînement.
+"tests/**" = ["D100", "D103", "N806"]
 "src/decrochage_l1/modeling/*.py" = ["N803", "N806"]
-"tests/test_modeling.py" = ["N806"]
 
 [tool.ruff.lint.isort]
 # Regroupe les imports du code interne dans un bloc distinct des paquets tiers.
