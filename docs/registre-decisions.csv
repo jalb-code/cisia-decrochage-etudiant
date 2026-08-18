@@ -20,4 +20,4 @@ D18,Les autres colonnes sont-elles connues à mi-S1 ?,§3,§3,"Présumées connu
 D19,Que faire des valeurs extrêmes signalées par Tukey ?,§6,§6,"Ni écrêtage ni retrait : rares mais réelles, aucune aberrante au sens métier ; conservées dans le gold",optimal,tranchée
 D20,Faut-il écarter une colonne redondante du bloc d'engagement (colinéarité) ?,§6,§6,"Aucun retrait en §6 : la redondance n'est pas un pouvoir prédictif ; les trois LMS traversent le gold, retrait éventuel décidé sur le poids SHAP (§12), généralise D16",optimal,tranchée
 D21,Quel dénominateur pour la feature dérivée ratio_retards ?,§7,§7,"retards_rendus / nb_devoirs_total (total attendu), comparable d'un étudiant à l'autre plutôt que rapporté aux seuls devoirs rendus",optimal,tranchée
-D22,"Que faire de annee_universitaire (constante, 1 modalité) ?",§6,§7,"Exclue du gold : variance nulle, aucun pouvoir prédictif (constance mesurée §6.3)",minimal,tranchée
+D22,"Quel seuil de rareté pour repérer les modalités sous-représentées (§4.5) ?",§4.5,§6.3,"Seuil à 5 % : plancher d'un audit d'équité exploitable ; fait remonter etablissement_origine=autre (proxy, D14)",optimal,tranchée
