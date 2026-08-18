@@ -75,6 +75,10 @@ class ModelFacts:
     nominal_modalities: dict[str, tuple[str, ...]]
     exclusions: tuple[Exclusion, ...]
     themes: dict[str, str]  # variable source -> thème, pour l'agrégation de l'explicabilité
+    # Unités à retirer à la conversion d'un champ numérique (« % », « km »…). Déclarées au
+    # notebook — la même information que `detect_units` mesure côté préparation —, jamais
+    # devinées par le service : c'est ce qui lui fait conformer une entrée à l'identique.
+    units: dict[str, tuple[str, ...]] = field(default_factory=dict)
     # Instantané du train, servant de référence à la dérive ; hors comparaison/repr (volumineux).
     drift_reference: pd.DataFrame | None = field(default=None, compare=False, repr=False)
 
@@ -124,6 +128,12 @@ class ServiceContract:
         unknown_typed = typed - known
         if unknown_typed:
             raise ValueError(f"typage sur des colonnes inconnues : {sorted(unknown_typed)}")
+
+        non_numeric_units = set(self.facts.units) - set(self.facts.numeric)
+        if non_numeric_units:
+            raise ValueError(
+                f"unités sur des colonnes non numériques : {sorted(non_numeric_units)}"
+            )
 
         if not 0.0 <= self.defaults.threshold <= 1.0:
             raise ValueError(f"seuil hors [0, 1] : {self.defaults.threshold}")

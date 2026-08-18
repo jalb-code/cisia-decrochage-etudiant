@@ -94,3 +94,10 @@ def test_seuils_de_derive_non_ordonnes_refuses():
     defauts.drift_surveillance, defauts.drift_alerte = 0.30, 0.10
     with pytest.raises(ValueError, match="seuils de dérive non ordonnés"):
         ct.ServiceContract(facts=_facts(), defaults=defauts).validate()
+
+
+def test_unite_sur_colonne_non_numerique_refusee():
+    faits = _facts()
+    faits.units["filiere"] = ("%",)  # une unité n'a de sens que sur un champ numérique
+    with pytest.raises(ValueError, match="unités sur des colonnes non numériques"):
+        ct.ServiceContract(facts=faits, defaults=_defaults()).validate()
