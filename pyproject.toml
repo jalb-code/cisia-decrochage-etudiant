@@ -16,6 +16,7 @@ dependencies = [
     "scikit-learn>=1.9.0",
     "shap>=0.52.0",
     "pydantic-settings>=2.3",  # configuration runtime surchargeable par l'environnement (config.py)
+    "xgboost>=3.4.1",  # famille boosting comparée en §8 ; pas nécessairement embarquée dans l'artefact §10
 ]
 
 # Dépendances de DÉVELOPPEMENT (lint, format, tests, notebooks) : hors runtime.
