@@ -197,7 +197,8 @@ en §7** : §5 et §6 constatent, mesurent, décident ; §7 agit.
 | **5** Chargement et compréhension | profiler, constater, inventorier les modalités | **jeu de travail** — conformation d'écriture, recodage, dédoublonnage. N'arbitre rien, ne perd aucune information. **Jetable** : il ne sert qu'à §6, §7 repart des fichiers reçus |
 | **6** EDA | mesurer, interpréter, **décider** — sur l'ensemble du jeu | rien : aucune donnée n'est modifiée |
 | **7** Préparation | repartir des fichiers reçus, rejouer les règles de §5, appliquer les décisions de §6 | **bronze** → **silver** → **gold**. La section se clôt sur le jeu de référence et ses décisions |
-| **9** Entraînement | **splitter**, puis ajuster le `Pipeline` sur le train seul | partition train / test, puis imputation, encodages, scaling |
+| **8** Choix du modèle | **splitter** (test scellé), bâtir le préprocesseur, comparer les familles en CV | partition train / test ; préprocesseur appris ; **famille et jeu de features retenus** |
+| **9** Entraînement | **optimiser le modèle retenu** — hyperparamètres, seuil, calibration, sur le train seul | modèle final ajusté, reproductible |
 
 **Le bronze est la copie exacte des fichiers reçus, immuable** — rien n'y est transformé. C'est
 l'assurance de pouvoir rejouer la chaîne depuis la source si une règle de conformation se révèle
@@ -224,22 +225,30 @@ c'est ce qui garantit qu'aucune modalité rare ne manque à l'inventaire. Deux g
 - **Le vocabulaire catégoriel est déclaré, jamais déduit** — `preparation.CANONICAL_MODALITIES` fait foi,
   et l'encodeur le reçoit explicitement (`categories=[...]`, `handle_unknown="ignore"`). Une
   modalité absente du train ne peut pas faire disparaître sa colonne.
-- **Aucune inclusion ni exclusion ne se décide sur une relation mesurée avec la cible.** Les
-  exclusions sont *de principe* (fuite temporelle, identifiants, variance nulle, minimisation).
-  Corollaire : **les leurres ne sont pas retirés** — ils traversent le gold, entrent dans le modèle,
-  et §12 montre que SHAP leur donne un poids ≈ 0. Les démontrer nuls vaut mieux que les croire.
+- **Aucune *inclusion* ne se décide sur la seule performance mesurée avec la cible** — garder une
+  variable parce qu'elle fait monter l'AUC rouvrirait la porte aux proxies et au sur-ajustement de
+  la sélection. Le **retrait**, lui, est *de principe* : fuite temporelle, identifiants, variance
+  nulle, et **minimisation** (art. 5.1.c) — on retire par défaut, la mesure ne fait que *quantifier
+  le coût* d'un retrait, jamais fonder une inclusion.
+- **Leurres, proxies et redondances traversent le gold, puis sont mis à l'épreuve du retrait en §8.**
+  L'ablation (complet vs complet-sans-bloc) mesure le coût sur les décrocheurs : on conserve le
+  retrait sauf chute matérielle. **§12 (SHAP) confirme** ce verdict sur le modèle retenu et sert
+  l'explicabilité — il ne décide pas de l'inclusion. Mesurer le coût du retrait vaut mieux que
+  croire une variable nulle ou utile.
 
-**Le split ouvre §9 et scelle le test** : ni ajustement, ni hyperparamètre, ni seuil, ni sélection de
+**Le split ouvre §8 et scelle le test** : ni ajustement, ni hyperparamètre, ni seuil, ni sélection de
 modèle ne le regardent avant §12. Sa place est là, et non en §7, parce que la partition n'est pas un
-état de la donnée mais le **protocole d'évaluation** — l'attendu C5, « stratégie
-train/validation/test sans fuite ». Tout ce qui concerne la **validation** — validation croisée ou
-jeu de validation découpé dans le train, calibration sur prédictions *out-of-fold* ou sur une
-tranche dédiée — se décide dans la même section, **à l'intérieur du train**.
+état de la donnée mais le **protocole d'évaluation** (attendu C5, « stratégie train/validation/test
+sans fuite ») — et la comparaison des familles [C4] exige des mesures, donc un split déjà fait. Tout
+ce qui se passe **à l'intérieur du train** — validation croisée pour comparer (§8), puis réglage des
+hyperparamètres, du seuil et de la calibration sur prédictions *out-of-fold* (§9) — ne touche jamais
+le test.
 
 **Le préprocessing appris reste dans le `Pipeline`, ré-ajusté à chaque pli.** Imputation, encodages
 et scaling se `fit` *à l'intérieur* de la validation croisée, jamais figés sur le train entier avant
-elle — sinon le pli de validation fuit dans l'ajustement. §9 **ajuste** ce `Pipeline` sur le train ;
-**§10 le sérialise** (C6) : l'artefact déployable se fige là, sur le modèle final éprouvé, pas avant.
+elle — sinon le pli de validation fuit dans l'ajustement. **§8 compare les familles** avec ce
+`Pipeline` (refit par pli), **§9 optimise** le modèle retenu ; **§10 le sérialise** (C6) : l'artefact
+déployable se fige là, sur le modèle final éprouvé, pas avant.
 
 ### Lexique — quatre objets, un seul mot « pipeline »
 
@@ -255,14 +264,14 @@ elle — sinon le pli de validation fuit dans l'ajustement. §9 **ajuste** ce `P
   moyenne/écart-type) ⇒ `fit` sur le train seul, **après le split**. C'est ce que la table
   gold/`Pipeline` ci-dessus nomme `Pipeline`.
 - **Le pipeline modèle** - un `Pipeline([préprocesseur, estimateur])` : préprocesseur **et** modèle
-  enchaînés en un objet `fit`/`predict` unique. C'est lui qu'on ajuste et qu'on valide en **§9** ; le
+  enchaînés en un objet `fit`/`predict` unique. C'est lui qu'on compare en **§8** et qu'on optimise en **§9** ; le
   préprocesseur étant dedans, la validation croisée le ré-ajuste à chaque pli - **sans fuite**.
 - **Le pipeline déployé** - le pipeline modèle final, `fit`, éprouvé (§12), puis **sérialisé**
   (`joblib`) et emballé d'un `predict()` + contrat d'entrée/sortie. L'artefact **déployable** de
   **§10** (C6). Même objet que le pipeline modèle, figé pour la production.
 
 Les trois derniers sont **le même objet à trois stades** : le préprocesseur *dans* le pipeline
-modèle, `fit` en §9, sérialisé en §10. Seule la **chaîne** (premier point) est d'une autre nature.
+modèle, comparé en §8 et optimisé en §9, sérialisé en §10. Seule la **chaîne** (premier point) est d'une autre nature.
 
 ## Sources de vérité
 
