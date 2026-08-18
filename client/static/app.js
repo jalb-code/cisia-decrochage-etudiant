@@ -15,17 +15,17 @@ const State = {
 /* Formulaire Dossier : STATIQUE (construit ici, pas depuis le service). À synchroniser avec
    les colonnes d'entrée du contrat du modèle final (§9). Une valeur vide n'est pas envoyée. */
 const CHAMPS = [
-  { col: "taux_presence_pct", label: "Taux de présence", bornes: "[0 ; 100] %" },
-  { col: "connexions_lms_30j", label: "Connexions LMS (30 j)", bornes: "[0 ; 500]" },
-  { col: "heures_lms_total", label: "Heures sur le LMS", bornes: "[0 ; 1000]" },
-  { col: "ressources_consultees", label: "Ressources consultées", bornes: "[0 ; 2000]" },
-  { col: "nb_devoirs_total", label: "Devoirs attendus", bornes: "[1 ; 50]" },
-  { col: "nb_devoirs_rendus", label: "Devoirs rendus", bornes: "[0 ; 50]" },
-  { col: "retards_rendus", label: "Rendus en retard", bornes: "[0 ; 50]" },
-  { col: "messages_forum", label: "Messages forum", bornes: "[0 ; 500]" },
-  { col: "motivation", label: "Motivation", bornes: "[1 ; 5]" },
-  { col: "satisfaction", label: "Satisfaction", bornes: "[1 ; 5]" },
-  { col: "sentiment_appartenance", label: "Sentiment d'appartenance", bornes: "[1 ; 5]" },
+  { col: "taux_presence_pct", label: "Taux de présence", bornes: "[0 ; 100] %", theme: "Assiduité" },
+  { col: "nb_devoirs_total", label: "Devoirs attendus", bornes: "[1 ; 50]", theme: "Assiduité" },
+  { col: "nb_devoirs_rendus", label: "Devoirs rendus", bornes: "[0 ; 50]", theme: "Assiduité" },
+  { col: "retards_rendus", label: "Rendus en retard", bornes: "[0 ; 50]", theme: "Assiduité" },
+  { col: "connexions_lms_30j", label: "Connexions LMS (30 j)", bornes: "[0 ; 500]", theme: "Engagement" },
+  { col: "heures_lms_total", label: "Heures sur le LMS", bornes: "[0 ; 1000]", theme: "Engagement" },
+  { col: "ressources_consultees", label: "Ressources consultées", bornes: "[0 ; 2000]", theme: "Engagement" },
+  { col: "messages_forum", label: "Messages forum", bornes: "[0 ; 500]", theme: "Engagement" },
+  { col: "motivation", label: "Motivation", bornes: "[1 ; 5]", theme: "Ressenti" },
+  { col: "satisfaction", label: "Satisfaction", bornes: "[1 ; 5]", theme: "Ressenti" },
+  { col: "sentiment_appartenance", label: "Sentiment d'appartenance", bornes: "[1 ; 5]", theme: "Ressenti" },
 ];
 const FILIERES = ["Biologie", "Droit", "Gestion", "Informatique", "Lettres", "Mathématiques", "Psychologie", "STAPS"];
 
@@ -44,12 +44,16 @@ const fmtPct = (x) => (x == null ? "—" : (x * 100).toFixed(1) + " %");
 const fmtNum = (x, d = 2) => (x == null ? "—" : Number(x).toFixed(d));
 
 let toastTimer;
-function toast(message) {
+function toast(message, type = "") {
   const t = $("#toast");
-  t.textContent = message;
+  t.className = "toast" + (type ? " " + type : "");
+  const icon = type === "danger" ? "alert-triangle" : type === "success" ? "check-circle" : "info";
+  t.innerHTML = `<i data-lucide="${icon}"></i><span></span>`;
+  t.querySelector("span").textContent = message;
   t.hidden = false;
+  refreshIcons();
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 3200);
+  toastTimer = setTimeout(() => (t.hidden = true), 3600);
 }
 
 async function api(path, { method = "GET", body = null, key = true } = {}) {
@@ -142,7 +146,11 @@ function screenCampagne() {
   );
   const card = el(`<div class="card">
     <div class="row-actions" style="margin:0;align-items:center;flex-wrap:wrap">
-      <input type="file" id="csv" accept=".csv,.tsv,.txt" />
+      <span class="file-picker">
+        <input type="file" id="csv" accept=".csv,.tsv,.txt" hidden />
+        <button class="btn btn-ghost" id="btn-choose"><i data-lucide="file-up"></i> Choisir un fichier</button>
+        <span id="file-name" class="muted">Aucun fichier</span>
+      </span>
       <label class="muted"><input type="checkbox" id="derive" /> mesurer la dérive</label>
       <button class="btn btn-ghost" id="btn-format"><i data-lucide="help-circle"></i> Aide sur le format</button>
       <button class="btn btn-ghost" id="btn-modele-csv"><i data-lucide="download"></i> Télécharger un modèle</button>
@@ -174,11 +182,13 @@ function screenCampagne() {
   };
 
   $("#btn-modele-csv").onclick = () => downloadTemplate();
+  $("#btn-choose").onclick = () => $("#csv").click();
 
   let rows = [];
   $("#csv").onchange = async (ev) => {
     const file = ev.target.files[0];
     if (!file) return;
+    $("#file-name").textContent = file.name;
     rows = parseTable(await file.text());
     $("#csv-info").innerHTML = precheck(rows);
   };
@@ -317,17 +327,26 @@ function screenDossier() {
       <p>Une écriture « sale » (52,4 %, « INFORMATIQUE ») est acceptée : c'est le service qui convertit, borne et score — pas cette page.</p></div>`)
   );
 
-  const champs = CHAMPS.map(
-    (c) => `<label class="field">${c.label} <span class="muted">${c.bornes}</span>
-      <input data-col="${c.col}" placeholder="vide = manquant" /></label>`
-  ).join("");
+  // Champs regroupés par thématique — une section par thème, deux colonnes par section.
+  const themes = [...new Set(CHAMPS.map((c) => c.theme))];
+  const sections = themes
+    .map((theme) => {
+      const inputs = CHAMPS.filter((c) => c.theme === theme)
+        .map(
+          (c) => `<label class="field">${c.label} <span class="muted">${c.bornes}</span>
+            <input data-col="${c.col}" placeholder="vide = manquant" /></label>`
+        )
+        .join("");
+      return `<div class="theme-head">${theme}</div><div class="grid-form">${inputs}</div>`;
+    })
+    .join("");
   const options = FILIERES.map((m) => `<option value="${m}">${m}</option>`).join("");
+  const contexte = `<div class="theme-head">Contexte</div><div class="grid-form">
+    <label class="field">Filière
+      <select data-col="filiere"><option value=""></option>${options}</select></label></div>`;
 
   const card = el(`<div class="card">
-    <div class="grid-form">${champs}
-      <label class="field">Filière
-        <select data-col="filiere"><option value=""></option>${options}</select></label>
-    </div>
+    ${sections}${contexte}
     <div class="row-actions">
       <button class="btn btn-primary" id="btn-estimer"><i data-lucide="activity"></i> Estimer</button>
       <button class="btn btn-ghost" id="btn-exemple">Remplir un exemple</button>
@@ -483,43 +502,115 @@ function screenParametres() {
 function showError(e) {
   if (e.status === 422 && e.data && e.data.detail && e.data.detail.errors) {
     const champs = e.data.detail.errors.map((x) => `${x.field} — ${x.message}`).join(" · ");
-    toast(`Refusé : ${champs}`);
+    toast(`Refusé : ${champs}`, "danger");
   } else if (e.status === 401) {
-    toast("Clé d'API absente ou invalide (voir Paramètres).");
+    toast("Clé d'API absente ou invalide (voir Paramètres).", "danger");
+  } else if (e.status === 503) {
+    toast("Service ou modèle indisponible (503).", "danger");
   } else {
-    toast(`Erreur ${e.status || "réseau"}.`);
+    toast(`Erreur ${e.status || "réseau"}.`, "danger");
   }
+}
+
+/* --- Écran : accueil (cartes cliquables vers les sections) --- */
+function screenAccueil() {
+  const content = $("#content");
+  content.appendChild(
+    el(`<div class="page-head"><h2>Bienvenue</h2>
+      <p>Aide à la décision pour la détection précoce du décrochage en L1. Choisir une section.</p></div>`)
+  );
+  const cards = NAV.filter((n) => n.id !== "accueil")
+    .map(
+      (n) => `<button class="home-card" data-id="${n.id}">
+        <span class="ic"><i data-lucide="${n.icon}"></i></span>
+        <h3>${n.label}</h3><p>${n.desc}</p>
+        <span class="go">Ouvrir <i data-lucide="arrow-right"></i></span>
+      </button>`
+    )
+    .join("");
+  const grid = el(`<div class="home-grid">${cards}</div>`);
+  grid.querySelectorAll(".home-card").forEach((c) => (c.onclick = () => go(c.dataset.id)));
+  content.appendChild(grid);
+  refreshIcons();
 }
 
 /* --- Navigation --- */
 const NAV = [
-  { id: "campagne", label: "Campagne", icon: "users", screen: screenCampagne },
-  { id: "dossier", label: "Dossier", icon: "user", screen: screenDossier },
-  { id: "modele", label: "Modèle", icon: "file-text", screen: screenModele },
-  { id: "info", label: "Info", icon: "info", screen: screenInfo },
-  { id: "parametres", label: "Paramètres", icon: "settings", screen: screenParametres },
+  { id: "accueil", label: "Accueil", icon: "home", screen: screenAccueil, desc: "" },
+  {
+    id: "campagne",
+    label: "Campagne",
+    icon: "users",
+    screen: screenCampagne,
+    desc: "Scorer une promotion entière depuis un fichier tabulaire : probabilités, note estimée, explicabilité et dérive.",
+  },
+  {
+    id: "dossier",
+    label: "Dossier",
+    icon: "user",
+    screen: screenDossier,
+    desc: "Estimer le risque d'un étudiant et lire les facteurs qui pèsent, regroupés par thématique.",
+  },
+  {
+    id: "modele",
+    label: "Modèle",
+    icon: "file-text",
+    screen: screenModele,
+    desc: "La fiche du modèle déployé : variables, version, et colonnes exclues avec leur motif.",
+  },
+  {
+    id: "info",
+    label: "Info",
+    icon: "info",
+    screen: screenInfo,
+    desc: "Surfaces techniques : documentation de l'API (Swagger), supervision Grafana et Prometheus.",
+  },
+  {
+    id: "parametres",
+    label: "Paramètres",
+    icon: "settings",
+    screen: screenParametres,
+    desc: "Adresse du service, clé d'API et URLs de supervision.",
+  },
 ];
 
 function go(id) {
-  const nav = $("#nav");
-  nav.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.id === id));
+  const n = NAV.find((x) => x.id === id) || NAV[0];
+  $("#nav")
+    .querySelectorAll("button")
+    .forEach((b) => b.classList.toggle("active", b.dataset.id === n.id));
+  const bc = $("#breadcrumb");
+  bc.innerHTML =
+    n.id === "accueil"
+      ? `<i data-lucide="home"></i> <span>Accueil</span>`
+      : `<a id="bc-home"><i data-lucide="home"></i> Accueil</a> <span>/</span> <span>${n.label}</span>`;
+  const home = $("#bc-home");
+  if (home) home.onclick = () => go("accueil");
   $("#content").innerHTML = "";
-  (NAV.find((n) => n.id === id) || NAV[0]).screen();
+  n.screen();
   refreshIcons();
+}
+
+function applyCollapsed(collapsed) {
+  $("#app").classList.toggle("collapsed", collapsed);
+  localStorage.setItem("dl1.collapsed", collapsed ? "1" : "0");
 }
 
 function init() {
   applyTheme(State.theme);
   const nav = $("#nav");
   NAV.forEach((n) => {
-    const b = el(`<button data-id="${n.id}"><i data-lucide="${n.icon}"></i> ${n.label}</button>`);
+    const b = el(`<button data-id="${n.id}"><i data-lucide="${n.icon}"></i> <span>${n.label}</span></button>`);
     b.onclick = () => go(n.id);
     nav.appendChild(b);
   });
   $("#btn-params").onclick = () => go("parametres");
+  $("#btn-home").onclick = () => go("accueil");
   $("#btn-theme").onclick = () => applyTheme(State.theme === "dark" ? "light" : "dark");
+  applyCollapsed(localStorage.getItem("dl1.collapsed") === "1");
+  $("#btn-collapse").onclick = () => applyCollapsed(!$("#app").classList.contains("collapsed"));
   refreshIcons();
-  refreshStatus().then(loadFiche).then(() => go("campagne"));
+  refreshStatus().then(loadFiche).then(() => go("accueil"));
   // Indicateur d'état rafraîchi périodiquement (l'API peut tomber ou redémarrer).
   setInterval(refreshStatus, 12000);
 }

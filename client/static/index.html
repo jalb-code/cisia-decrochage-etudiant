@@ -14,7 +14,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
   </head>
   <body>
-    <div class="app">
+    <div class="app" id="app">
       <aside class="sidebar">
         <div class="brand">
           <span class="brand-mark">◆</span>
@@ -27,6 +27,12 @@
       <div class="main">
         <header class="topbar">
           <div class="topbar-title">
+            <button id="btn-collapse" class="btn btn-ghost" title="Réduire le menu">
+              <i data-lucide="panel-left"></i>
+            </button>
+            <button id="btn-home" class="btn btn-ghost" title="Accueil">
+              <i data-lucide="home"></i>
+            </button>
             <h1>Décrochage L1 — aide à la décision</h1>
             <span class="badge badge-soft">maquette — hors périmètre livré</span>
           </div>
@@ -42,6 +48,7 @@
           </div>
         </header>
 
+        <nav id="breadcrumb" class="breadcrumb"></nav>
         <main id="content" class="content"></main>
       </div>
     </div>
