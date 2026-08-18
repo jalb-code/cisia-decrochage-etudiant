@@ -19,9 +19,15 @@ définies dans [`pyproject.toml`](pyproject.toml) et installées par `uv sync`.
 ### 1. Installer l'environnement
 
 ```bash
-uv sync                 # crée le .venv et installe runtime + dépendances de dev
+uv sync                     # runtime du service d'inférence + dépendances de dev
+uv sync --group analysis    # + outillage d'étude (SHAP, XGBoost, Optuna, matplotlib, CodeCarbon)
 uv run pre-commit install
 ```
+
+Les dépendances sont **séparées par usage** : le groupe par défaut est le *runtime strict du service
+d'inférence* — c'est l'empreinte de l'image Docker ; le groupe **`analysis`** porte l'outillage qui
+ne sert qu'à produire le dossier d'étude. **Pour le notebook, le modeling (§8-§9-§12) et la suite de
+tests complète, installer aussi `--group analysis`.**
 
 ### 2. Déposer les données (obligatoire)
 
@@ -44,11 +50,55 @@ par le code**, jamais déposés à la main. Détail : [data/README.md](data/READ
 ```bash
 uv run ruff check .     # lint
 uv run ruff format .    # formatage
-uv run pytest           # tests unitaires
+uv run pytest           # tests unitaires (suite complète : nécessite --group analysis)
 ```
 
-Le notebook `notebooks/JALB-Decrochage-l1.ipynb` s'ouvre avec le `.venv` créé par `uv sync`
-comme noyau (Jupyter / VS Code).
+Les tests de la couche service (`tests/test_serving_*.py`, `test_api.py`, `test_metrics.py`)
+tournent avec le seul runtime ; la suite **complète** (dont `test_modeling.py`, qui importe XGBoost)
+exige le groupe `analysis`.
+
+Le notebook `notebooks/JALB-Decrochage-l1.ipynb` s'ouvre avec le `.venv` créé par
+`uv sync --group analysis` comme noyau (Jupyter / VS Code).
+
+## Service d'inférence et déploiement (§10 → §13)
+
+La logique de service vit dans [`src/decrochage_l1/serving/`](src/decrochage_l1/serving/) — runtime
+pur, sans outillage d'analyse :
+
+- **contrat & artefact** — `contract.py` (fiche du modèle : variables, exclusions motivées, bornes,
+  seuils, distribution de référence), `store.py` (`save_bundle` sérialise les deux pipelines + la
+  fiche, avec garde-fou anti-fuite) ;
+- **traitement** — `normalization.py` (conformation alignée sur la préparation, testée
+  anti-divergence), `validation.py` (contrôles ligne à ligne), `explain.py` (contributions
+  analytiques du modèle linéaire), `drift.py` (dérive par campagne, PSI/KS) ;
+- **API** — `api.py` (FastAPI) : `POST /v1/predict-cohorte`, `POST /v1/predict-etudiant`,
+  `GET /v1/modele`, `GET /v1/seuil`, `/health`, `/ready`, `/metrics` ; `metrics.py` (métriques
+  métier Prometheus).
+
+Lancer le service seul :
+
+```bash
+DECROCHAGE_API_KEYS=ma-cle uv run uvicorn decrochage_l1.serving.api:app --port 8000
+```
+
+Pile complète (service + Prometheus + Grafana + maquette de démonstration) :
+
+```bash
+cp .env.exemple .env          # renseigner DECROCHAGE_API_KEYS
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+| Surface | URL |
+|---|---|
+| API — documentation Swagger | http://localhost:8000/docs |
+| Maquette de démonstration | http://localhost:8080 |
+| Grafana — supervision | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+
+L'**image d'inférence** n'embarque que le runtime (`uv sync --no-default-groups --no-dev`) ; l'absence
+des libs d'analyse y est vérifiée au build. Le modèle (`models/`) est monté en lecture seule — absent,
+`/ready` répond 503 sans empêcher le démarrage. La **maquette** (`client/`) est **hors périmètre
+livré** : elle sert la démonstration. Variables d'exploitation : [.env.exemple](.env.exemple).
 
 ## Arborescence
 
@@ -71,11 +121,16 @@ src/decrochage_l1/  code source réutilisable, importable et testé
       profiling_report.py  restitution HTML du profil (mise en page seule)
       cleaning_utils.py    primitives de mise en forme (parsing, normalisation d'écriture)
       recoding_utils.py    mécanisme de recodage (reçoit son vocabulaire, n'en fige aucun)
+  modeling/           préprocesseur appris, familles de modèles, protocole, réglage (§8-§9)
+  serving/            service d'inférence (§10-§13), runtime pur : contrat/fiche, entrepôt,
+                      normalisation, validation, explicabilité, dérive, API FastAPI, métriques
 scripts/     scripts utilitaires (gardes de cohérence du dépôt)
 tests/       tests unitaires (pytest, src/ sur le pythonpath)
-models/      pipelines sérialisés (joblib)
+models/      artefacts sérialisés (joblib) : 2 pipelines + fiche du modèle (§10, hors dépôt)
 reports/     rapports de profilage HTML (générés, hors dépôt : ils citent des valeurs brutes)
 notebooks/   LE notebook certifiant unique (JALB-Decrochage-l1.ipynb)
+deploy/      Dockerfile (image socle-seul), docker-compose, monitoring Prometheus/Grafana
+client/      maquette de présentation (statique, hors périmètre livré)
 docs/
   registre-decisions.csv  registre des questions et décisions (vue de navigation)
   cas_usage/              énoncé du cas d'usage
