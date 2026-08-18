@@ -1,15 +1,37 @@
 /* Maquette de présentation — vanilla JS, zéro dépendance de framework (Lucide en CDN).
    Aucune règle métier ici : la page relaie au service, qui valide, convertit, borne et score.
-   Le formulaire, ses bornes et ses modalités sont générés depuis la fiche publiée par le
-   service (/v1/modele) — rien n'est recopié. La clé d'API vit dans le navigateur
-   (localStorage) : posture démo assumée, pour un usage localhost. */
+   La clé d'API vit dans le navigateur (localStorage) : posture démo assumée, usage localhost. */
 
 const State = {
   apiBase: localStorage.getItem("dl1.apiBase") || "http://localhost:8000",
   apiKey: localStorage.getItem("dl1.apiKey") || "",
+  grafana: localStorage.getItem("dl1.grafana") || "http://localhost:3000",
+  prometheus: localStorage.getItem("dl1.prometheus") || "http://localhost:9090",
+  theme: localStorage.getItem("dl1.theme") || "light",
   fiche: null,
   seuil: null,
 };
+
+/* Formulaire Dossier : STATIQUE (construit ici, pas depuis le service). À synchroniser avec
+   les colonnes d'entrée du contrat du modèle final (§9). Une valeur vide n'est pas envoyée. */
+const CHAMPS = [
+  { col: "taux_presence_pct", label: "Taux de présence", bornes: "[0 ; 100] %" },
+  { col: "connexions_lms_30j", label: "Connexions LMS (30 j)", bornes: "[0 ; 500]" },
+  { col: "heures_lms_total", label: "Heures sur le LMS", bornes: "[0 ; 1000]" },
+  { col: "ressources_consultees", label: "Ressources consultées", bornes: "[0 ; 2000]" },
+  { col: "nb_devoirs_total", label: "Devoirs attendus", bornes: "[1 ; 50]" },
+  { col: "nb_devoirs_rendus", label: "Devoirs rendus", bornes: "[0 ; 50]" },
+  { col: "retards_rendus", label: "Rendus en retard", bornes: "[0 ; 50]" },
+  { col: "messages_forum", label: "Messages forum", bornes: "[0 ; 500]" },
+  { col: "motivation", label: "Motivation", bornes: "[1 ; 5]" },
+  { col: "satisfaction", label: "Satisfaction", bornes: "[1 ; 5]" },
+  { col: "sentiment_appartenance", label: "Sentiment d'appartenance", bornes: "[1 ; 5]" },
+];
+const FILIERES = ["Biologie", "Droit", "Gestion", "Informatique", "Lettres", "Mathématiques", "Psychologie", "STAPS"];
+
+/* Colonnes attendues d'un fichier de campagne (mêmes que le Dossier statique + filière). À
+   synchroniser avec les input_columns du contrat. `reference_dossier` est facultative. */
+const EXPECTED_COLUMNS = [...CHAMPS.map((c) => c.col), "filiere"];
 
 const $ = (sel) => document.querySelector(sel);
 const el = (html) => {
@@ -50,7 +72,17 @@ async function api(path, { method = "GET", body = null, key = true } = {}) {
   return data;
 }
 
-/* --- Bandeau d'état : service joignable et prêt, seuil en vigueur --- */
+/* --- Thème clair / sombre --- */
+function applyTheme(theme) {
+  State.theme = theme;
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem("dl1.theme", theme);
+  const btn = $("#btn-theme");
+  if (btn) btn.innerHTML = `<i data-lucide="${theme === "dark" ? "sun" : "moon"}"></i>`;
+  refreshIcons();
+}
+
+/* --- Bandeau d'état : service joignable et prêt, rafraîchi périodiquement --- */
 async function refreshStatus() {
   const pill = $("#service-pill");
   const label = $("#service-label");
@@ -59,7 +91,7 @@ async function refreshStatus() {
     const ready = await api("/ready", { key: false });
     if (ready.ready) {
       pill.classList.add("ok");
-      label.textContent = "service prêt";
+      label.textContent = "API prête";
       State.seuil = ready.seuil;
     } else {
       pill.classList.add("ko");
@@ -67,7 +99,7 @@ async function refreshStatus() {
     }
   } catch {
     pill.classList.add("ko");
-    label.textContent = "service injoignable";
+    label.textContent = "API injoignable";
     State.seuil = null;
   }
   $("#seuil-label").textContent = State.seuil == null ? "seuil —" : `seuil ${State.seuil}`;
@@ -101,106 +133,6 @@ const themeItems = (c) => Object.entries(c.by_theme).map(([k, v]) => ({ key: k, 
 const variableItems = (c) =>
   c.by_variable.map((v) => ({ key: v.variable, contribution: v.contribution }));
 
-/* --- Écran : un dossier --- */
-function screenDossier() {
-  const content = $("#content");
-  if (!State.fiche) {
-    content.appendChild(
-      el(`<div class="card"><p class="muted">Fiche du modèle indisponible — vérifier la clé d'API en Paramètres.</p></div>`)
-    );
-    return;
-  }
-  const f = State.fiche;
-  content.appendChild(
-    el(`<div class="page-head"><h2>Examiner un dossier</h2>
-      <p>Champs et bornes lus dans le contrat publié par le service ; une écriture « sale » (52,4 %, « INFORMATIQUE ») est acceptée et normalisée par le service, pas par cette page.</p></div>`)
-  );
-
-  const fields = f.input_columns
-    .map((col) => {
-      const b = f.bounds[col];
-      const bornes = b ? ` [${b.minimum} ; ${b.maximum}]` : "";
-      if (f.categorical.includes(col)) {
-        const opts = (f.nominal_modalities[col] || [])
-          .map((m) => `<option value="${m}">${m}</option>`)
-          .join("");
-        return `<label class="field">${col}<select data-col="${col}"><option value=""></option>${opts}</select></label>`;
-      }
-      return `<label class="field">${col}<span class="muted">${bornes}</span>
-        <input data-col="${col}" placeholder="${b ? "" : "vide = manquant"}" /></label>`;
-    })
-    .join("");
-
-  const card = el(`<div class="card">
-    <div class="grid-form">${fields}</div>
-    <div class="row-actions">
-      <button class="btn btn-primary" id="btn-estimer"><i data-lucide="activity"></i> Estimer</button>
-      <button class="btn btn-ghost" id="btn-exemple">Remplir un exemple</button>
-    </div>
-    <div id="dossier-result"></div>
-  </div>`);
-  content.appendChild(card);
-  refreshIcons();
-
-  const readForm = () => {
-    const d = { reference_dossier: "demo-1" };
-    card.querySelectorAll("[data-col]").forEach((n) => {
-      if (n.value !== "") d[n.dataset.col] = n.value;
-    });
-    return d;
-  };
-
-  $("#btn-exemple").onclick = () => {
-    const ex = {
-      taux_presence_pct: "72 %",
-      nb_devoirs_total: "10",
-      nb_devoirs_rendus: "6",
-      retards_rendus: "3",
-      motivation: "2",
-      messages_forum: "1",
-      connexions_lms_30j: "4",
-      filiere: f.nominal_modalities.filiere ? f.nominal_modalities.filiere[0] : "",
-    };
-    card.querySelectorAll("[data-col]").forEach((n) => {
-      if (ex[n.dataset.col] != null) n.value = ex[n.dataset.col];
-    });
-  };
-
-  $("#btn-estimer").onclick = async () => {
-    try {
-      const seuilParam = State.seuil != null ? `?seuil=${State.seuil}` : "";
-      const res = await api(`/v1/predict-etudiant${seuilParam}`, { method: "POST", body: readForm() });
-      renderDossierResult($("#dossier-result"), res, readForm());
-    } catch (e) {
-      showError(e);
-    }
-  };
-}
-
-function renderDossierResult(host, res, dossier) {
-  const r = res.resultat;
-  const c = r.contributions;
-  const signale =
-    r.signaled == null
-      ? ""
-      : r.signaled
-        ? `<span class="badge badge-signale">signalé</span>`
-        : `<span class="badge badge-non">non signalé</span>`;
-  host.innerHTML = `
-    <hr style="border:0;border-top:1px solid var(--border);margin:16px 0" />
-    <div class="stat-row">
-      <div><div class="hint">probabilité d'abandon</div><div class="big-proba">${fmtPct(r.probability)}</div></div>
-      <div><div class="hint">note finale estimée</div><div class="big-proba" style="font-size:28px">${fmtNum(r.moyenne_finale, 1)} / 20</div></div>
-      <div>${signale}<div class="hint">seuil ${res.seuil_applique} (${res.provenance_seuil})</div></div>
-    </div>
-    <h3 style="margin-top:18px">Ce qui pèse sur cette estimation — par thème</h3>
-    ${contribBars(themeItems(c))}
-    <details style="margin-top:10px"><summary class="muted">détail par variable</summary>${contribBars(variableItems(c))}</details>
-    <div class="note-art22">${res.avertissement}</div>`;
-  // Curseur de seuil : la probabilité ne bouge pas, seul l'indicateur bascule.
-  void dossier;
-}
-
 /* --- Écran : une campagne --- */
 function screenCampagne() {
   const content = $("#content");
@@ -209,23 +141,46 @@ function screenCampagne() {
       <p>Un fichier tabulaire, une ligne par étudiant. Chaque ligne est envoyée au service, qui la valide et la score — ou la refuse en nommant le champ en cause.</p></div>`)
   );
   const card = el(`<div class="card">
-    <div class="row-actions" style="margin:0;align-items:center">
+    <div class="row-actions" style="margin:0;align-items:center;flex-wrap:wrap">
       <input type="file" id="csv" accept=".csv,.tsv,.txt" />
       <label class="muted"><input type="checkbox" id="derive" /> mesurer la dérive</label>
+      <button class="btn btn-ghost" id="btn-format"><i data-lucide="help-circle"></i> Aide sur le format</button>
+      <button class="btn btn-ghost" id="btn-modele-csv"><i data-lucide="download"></i> Télécharger un modèle</button>
       <button class="btn btn-primary" id="btn-scorer"><i data-lucide="play"></i> Scorer la campagne</button>
     </div>
+    <div id="format-help" hidden></div>
     <div class="hint" id="csv-info"></div>
   </div>`);
   content.appendChild(card);
   content.appendChild(el(`<div id="campagne-result"></div>`));
   refreshIcons();
 
+  $("#btn-format").onclick = () => {
+    const help = $("#format-help");
+    help.hidden = !help.hidden;
+    help.innerHTML = help.hidden
+      ? ""
+      : `<div class="alert" style="background:var(--surface-2);border:1px solid var(--border);margin-top:12px">
+        <strong>Format attendu</strong> — fichier tabulaire (CSV/TSV), UTF-8, une ligne d'en-tête puis une ligne par étudiant.
+        <ul style="margin:8px 0 0;padding-left:18px;line-height:1.7">
+          <li>séparateur <code>,</code> ou <code>;</code> (détecté automatiquement) ;</li>
+          <li>une cellule vide = valeur manquante (imputée par le service) ;</li>
+          <li>écriture « sale » acceptée (<code>52,4 %</code>, <code>INFORMATIQUE</code>) : le service convertit et borne ;</li>
+          <li><code>reference_dossier</code> facultative (générée si absente) ; toute colonne hors périmètre est refusée en la nommant.</li>
+        </ul>
+        <div style="margin-top:8px">Colonnes attendues : <code>reference_dossier</code>, <code>${EXPECTED_COLUMNS.join("</code>, <code>")}</code>.</div>
+      </div>`;
+    refreshIcons();
+  };
+
+  $("#btn-modele-csv").onclick = () => downloadTemplate();
+
   let rows = [];
   $("#csv").onchange = async (ev) => {
     const file = ev.target.files[0];
     if (!file) return;
     rows = parseTable(await file.text());
-    $("#csv-info").textContent = `${rows.length} lignes lues, ${Object.keys(rows[0] || {}).length} colonnes`;
+    $("#csv-info").innerHTML = precheck(rows);
   };
 
   $("#btn-scorer").onclick = async () => {
@@ -238,6 +193,32 @@ function screenCampagne() {
       showError(e);
     }
   };
+}
+
+/* Contrôle avant envoi — l'appelant corrige avant de solliciter le service. Le service reste
+   l'autorité : ce contrôle guide, il ne remplace pas sa validation. */
+function precheck(rows) {
+  if (!rows.length) return "Aucune ligne lue.";
+  const header = Object.keys(rows[0]);
+  const allowed = new Set(["reference_dossier", ...EXPECTED_COLUMNS]);
+  const inconnues = header.filter((h) => !allowed.has(h));
+  const absentes = EXPECTED_COLUMNS.filter((c) => !header.includes(c));
+  let msg = `${rows.length} lignes lues, ${header.length} colonnes.`;
+  if (inconnues.length) msg += ` <span style="color:var(--warning)">Colonnes non reconnues (seront refusées par le service) : ${inconnues.join(", ")}.</span>`;
+  if (absentes.length) msg += ` Colonnes attendues absentes (traitées comme manquantes) : ${absentes.join(", ")}.`;
+  return msg;
+}
+
+function downloadTemplate() {
+  const cols = ["reference_dossier", ...EXPECTED_COLUMNS];
+  const exemple = ["etu-001", "72 %", "4", "18", "40", "10", "6", "3", "1", "2", "3", "2", "Informatique"];
+  const csv = cols.join(",") + "\n" + exemple.slice(0, cols.length).join(",") + "\n";
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "modele-campagne.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function parseTable(text) {
@@ -328,26 +309,134 @@ function renderDerive(d) {
     <tbody>${rows}</tbody></table></div>`;
 }
 
-/* --- Écran : modèle --- */
+/* --- Écran : un dossier (formulaire STATIQUE) --- */
+function screenDossier() {
+  const content = $("#content");
+  content.appendChild(
+    el(`<div class="page-head"><h2>Examiner un dossier</h2>
+      <p>Une écriture « sale » (52,4 %, « INFORMATIQUE ») est acceptée : c'est le service qui convertit, borne et score — pas cette page.</p></div>`)
+  );
+
+  const champs = CHAMPS.map(
+    (c) => `<label class="field">${c.label} <span class="muted">${c.bornes}</span>
+      <input data-col="${c.col}" placeholder="vide = manquant" /></label>`
+  ).join("");
+  const options = FILIERES.map((m) => `<option value="${m}">${m}</option>`).join("");
+
+  const card = el(`<div class="card">
+    <div class="grid-form">${champs}
+      <label class="field">Filière
+        <select data-col="filiere"><option value=""></option>${options}</select></label>
+    </div>
+    <div class="row-actions">
+      <button class="btn btn-primary" id="btn-estimer"><i data-lucide="activity"></i> Estimer</button>
+      <button class="btn btn-ghost" id="btn-exemple">Remplir un exemple</button>
+    </div>
+    <div id="dossier-result"></div>
+  </div>`);
+  content.appendChild(card);
+  refreshIcons();
+
+  const readForm = () => {
+    const d = { reference_dossier: "demo-1" };
+    card.querySelectorAll("[data-col]").forEach((n) => {
+      if (n.value !== "") d[n.dataset.col] = n.value;
+    });
+    return d;
+  };
+
+  $("#btn-exemple").onclick = () => {
+    const ex = {
+      taux_presence_pct: "72 %",
+      connexions_lms_30j: "4",
+      heures_lms_total: "18",
+      ressources_consultees: "40",
+      nb_devoirs_total: "10",
+      nb_devoirs_rendus: "6",
+      retards_rendus: "3",
+      messages_forum: "1",
+      motivation: "2",
+      satisfaction: "3",
+      sentiment_appartenance: "2",
+      filiere: "Informatique",
+    };
+    card.querySelectorAll("[data-col]").forEach((n) => {
+      if (ex[n.dataset.col] != null) n.value = ex[n.dataset.col];
+    });
+  };
+
+  $("#btn-estimer").onclick = async () => {
+    try {
+      const seuilParam = State.seuil != null ? `?seuil=${State.seuil}` : "";
+      const res = await api(`/v1/predict-etudiant${seuilParam}`, { method: "POST", body: readForm() });
+      renderDossierResult($("#dossier-result"), res);
+    } catch (e) {
+      showError(e);
+    }
+  };
+}
+
+function renderDossierResult(host, res) {
+  const r = res.resultat;
+  const c = r.contributions;
+  const signale =
+    r.signaled == null
+      ? ""
+      : r.signaled
+        ? `<span class="badge badge-signale">signalé</span>`
+        : `<span class="badge badge-non">non signalé</span>`;
+  host.innerHTML = `
+    <hr style="border:0;border-top:1px solid var(--border);margin:16px 0" />
+    <div class="stat-row">
+      <div><div class="hint">probabilité d'abandon</div><div class="big-proba">${fmtPct(r.probability)}</div></div>
+      <div><div class="hint">note finale estimée</div><div class="big-proba" style="font-size:28px">${fmtNum(r.moyenne_finale, 1)} / 20</div></div>
+      <div>${signale}<div class="hint">seuil ${res.seuil_applique} (${res.provenance_seuil})</div></div>
+    </div>
+    <h3 style="margin-top:18px">Ce qui pèse sur cette estimation — par thème</h3>
+    ${contribBars(themeItems(c))}
+    <details style="margin-top:10px"><summary class="muted">détail par variable</summary>${contribBars(variableItems(c))}</details>
+    <div class="note-art22">${res.avertissement}</div>`;
+}
+
+/* --- Écran : modèle (lit la fiche réelle du modèle servi via /v1/modele) --- */
 function screenModele() {
   const content = $("#content");
   if (!State.fiche) {
-    content.appendChild(el(`<div class="card"><p class="muted">Fiche indisponible.</p></div>`));
+    content.appendChild(el(`<div class="card"><p class="muted">Fiche indisponible — vérifier la clé d'API en Paramètres.</p></div>`));
     return;
   }
   const f = State.fiche;
-  content.appendChild(el(`<div class="page-head"><h2>Fiche du modèle</h2><p>Version ${f.version}.</p></div>`));
-  const excl = f.exclusions
-    .map((e) => `<tr><td>${e.column}</td><td>${e.motif}</td></tr>`)
-    .join("");
+  content.appendChild(el(`<div class="page-head"><h2>Fiche du modèle</h2><p>Version ${f.version} — telle que le service la publie.</p></div>`));
   content.appendChild(
     el(`<div class="card"><h3>Variables du modèle (${f.input_columns.length} collectées + ${f.derived_columns.length} dérivées)</h3>
       <p class="muted">${[...f.input_columns, ...f.derived_columns].join(" · ")}</p></div>`)
   );
+  const excl = f.exclusions.map((e) => `<tr><td>${e.column}</td><td>${e.motif}</td></tr>`).join("");
   content.appendChild(
     el(`<div class="card"><h3>Colonnes exclues du périmètre, et pourquoi</h3>
       <table><thead><tr><th>colonne</th><th>motif</th></tr></thead><tbody>${excl}</tbody></table></div>`)
   );
+}
+
+/* --- Écran : info (liens vers les surfaces techniques) --- */
+function screenInfo() {
+  const content = $("#content");
+  content.appendChild(el(`<div class="page-head"><h2>Informations</h2><p>Surfaces techniques du dispositif.</p></div>`));
+  const liens = [
+    { t: "Documentation de l'API (Swagger UI)", u: State.apiBase + "/docs", i: "book-open" },
+    { t: "Contrat OpenAPI (JSON)", u: State.apiBase + "/openapi.json", i: "file-json" },
+    { t: "Supervision — Grafana", u: State.grafana, i: "line-chart" },
+    { t: "Métriques — Prometheus", u: State.prometheus, i: "activity" },
+  ];
+  const items = liens
+    .map(
+      (l) => `<li style="margin:8px 0"><a href="${l.u}" target="_blank" rel="noopener">
+        <i data-lucide="${l.i}" style="width:15px;height:15px;vertical-align:-2px"></i> ${l.t}</a>
+        <span class="muted"> — ${l.u}</span></li>`
+    )
+    .join("");
+  content.appendChild(el(`<div class="card"><ul style="list-style:none;padding:0;margin:0">${items}</ul></div>`));
+  refreshIcons();
 }
 
 /* --- Écran : paramètres --- */
@@ -359,6 +448,10 @@ function screenParametres() {
       <input id="p-base" value="${State.apiBase}" /></label>
     <label class="field" style="margin-bottom:12px">clé d'API
       <input id="p-key" type="password" value="${State.apiKey}" placeholder="X-API-Key" /></label>
+    <label class="field" style="margin-bottom:12px">URL Grafana
+      <input id="p-grafana" value="${State.grafana}" /></label>
+    <label class="field" style="margin-bottom:12px">URL Prometheus
+      <input id="p-prom" value="${State.prometheus}" /></label>
     <div class="row-actions">
       <button class="btn btn-primary" id="p-save"><i data-lucide="save"></i> Enregistrer et tester</button>
     </div>
@@ -370,8 +463,12 @@ function screenParametres() {
   $("#p-save").onclick = async () => {
     State.apiBase = $("#p-base").value.trim().replace(/\/$/, "");
     State.apiKey = $("#p-key").value.trim();
+    State.grafana = $("#p-grafana").value.trim().replace(/\/$/, "");
+    State.prometheus = $("#p-prom").value.trim().replace(/\/$/, "");
     localStorage.setItem("dl1.apiBase", State.apiBase);
     localStorage.setItem("dl1.apiKey", State.apiKey);
+    localStorage.setItem("dl1.grafana", State.grafana);
+    localStorage.setItem("dl1.prometheus", State.prometheus);
     try {
       const seuil = await api("/v1/seuil");
       $("#p-status").textContent = `Clé acceptée. Seuil en vigueur : ${seuil.seuil} (${seuil.provenance}).`;
@@ -399,6 +496,7 @@ const NAV = [
   { id: "campagne", label: "Campagne", icon: "users", screen: screenCampagne },
   { id: "dossier", label: "Dossier", icon: "user", screen: screenDossier },
   { id: "modele", label: "Modèle", icon: "file-text", screen: screenModele },
+  { id: "info", label: "Info", icon: "info", screen: screenInfo },
   { id: "parametres", label: "Paramètres", icon: "settings", screen: screenParametres },
 ];
 
@@ -411,6 +509,7 @@ function go(id) {
 }
 
 function init() {
+  applyTheme(State.theme);
   const nav = $("#nav");
   NAV.forEach((n) => {
     const b = el(`<button data-id="${n.id}"><i data-lucide="${n.icon}"></i> ${n.label}</button>`);
@@ -418,8 +517,11 @@ function init() {
     nav.appendChild(b);
   });
   $("#btn-params").onclick = () => go("parametres");
+  $("#btn-theme").onclick = () => applyTheme(State.theme === "dark" ? "light" : "dark");
   refreshIcons();
   refreshStatus().then(loadFiche).then(() => go("campagne"));
+  // Indicateur d'état rafraîchi périodiquement (l'API peut tomber ou redémarrer).
+  setInterval(refreshStatus, 12000);
 }
 
 init();
