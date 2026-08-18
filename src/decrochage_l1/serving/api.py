@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from decrochage_l1.config import settings as runtime_settings
-from decrochage_l1.serving import schemas, scoring, validation
+from decrochage_l1.serving import metrics, schemas, scoring, validation
 from decrochage_l1.serving.contract import ServiceContract
 from decrochage_l1.serving.settings import ServiceSettings
 from decrochage_l1.serving.store import Bundle, EntrepotModele
@@ -67,6 +67,13 @@ def create_app(
     app.state.settings = service
     app.state.entrepot = entrepot
 
+    # État initial des métriques métier : disponibilité, seuil, séries de refus à zéro.
+    metrics.set_model_loaded(entrepot.ready)
+    if entrepot.ready:
+        contract = entrepot.bundle.contract
+        metrics.set_threshold(_resolve_threshold(None, service, contract))
+        metrics.init_perimeter_series(e.column for e in contract.facts.exclusions)
+
     if service.origins:
         app.add_middleware(
             CORSMiddleware,
@@ -106,6 +113,9 @@ def create_app(
         result = validation.validate(
             payload.dossiers, bundle.contract.facts, bundle.contract.defaults
         )
+        metrics.observe_refusals(
+            result.rejections, {e.column for e in bundle.contract.facts.exclusions}
+        )
         scores = scoring.score(
             bundle,
             result.accepted,
@@ -142,6 +152,9 @@ def create_app(
         service_local: ServiceSettings = request.app.state.settings
         threshold = _resolve_threshold(seuil, service_local, bundle.contract)
         result = validation.validate([dossier], bundle.contract.facts, bundle.contract.defaults)
+        metrics.observe_refusals(
+            result.rejections, {e.column for e in bundle.contract.facts.exclusions}
+        )
         if result.rejections:
             raise HTTPException(
                 status_code=422, detail=schemas.rejection_to_dict(result.rejections[0])

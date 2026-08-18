@@ -1,0 +1,22 @@
+# Contexte de build minimal : seuls pyproject/uv.lock/src/README entrent dans l'image.
+.git
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.ipynb_checkpoints
+
+# Données, artefacts et rapports : jamais dans l'image (montés ou ajoutés au §10).
+data
+models
+reports
+
+# Matériel d'étude et de travail, hors runtime.
+notebooks
+docs
+tests
+*.ipynb
+todo.txt
+ml.txt
