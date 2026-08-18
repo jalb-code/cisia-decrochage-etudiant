@@ -77,6 +77,36 @@ CANONICAL_MODALITIES: recoding_utils.Vocabulary = {
 }
 
 
+# Inventaire déclaré des modalités catégorielles, pour que l'encodeur du modèle reçoive
+# `categories=[...]` **explicitement** (garde-fou : déclaré, jamais déduit du seul train -
+# une modalité rare absente d'un pli ne doit pas faire disparaître sa colonne). Ces
+# modalités sont un **fait mesuré** à l'EDA (§6), pas un jugement. Les colonnes à
+# synonymes réutilisent les clés de CANONICAL_MODALITIES ; `preprocessing.MISSING_CATEGORY`
+# ("inconnu") est la modalité d'absence de `etablissement_origine` (branche métier D09).
+NOMINAL_MODALITIES: dict[str, tuple[str, ...]] = {
+    "filiere": (
+        "biologie",
+        "droit",
+        "gestion",
+        "informatique",
+        "lettres",
+        "mathematiques",
+        "psychologie",
+        "staps",
+    ),
+    "bac_type": tuple(CANONICAL_MODALITIES["bac_type"]),
+    "etablissement_origine": ("autre", "cfa", "lycee_prive", "lycee_public", "inconnu"),
+    "groupe_td": tuple("abcdefgh"),
+    "couleur_carte_etudiante": ("bleu", "gris", "jaune", "rouge", "vert"),
+    "jour_inscription": ("lundi", "mardi", "mercredi", "jeudi", "vendredi"),
+}
+
+# Modalités **ordonnées** - l'ordre EST l'information, il fonde l'encodage ordinal.
+ORDINAL_MODALITIES: dict[str, tuple[str, ...]] = {
+    "mention_bac": tuple(CANONICAL_MODALITIES["mention_bac"]),  # passable < … < tres bien
+}
+
+
 @dataclass(frozen=True)
 class TransformResult:
     """Effet de la transformation - les faits à afficher, sans référence au disque."""

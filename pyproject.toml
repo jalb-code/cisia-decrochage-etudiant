@@ -55,14 +55,18 @@ extend-exclude = [".venv*", "venv*", "dist", "build"]
 #        sans imposer leur mise en forme : docstrings en français, commentaires réservés au non-évident.
 select = ["E", "F", "I", "UP", "B", "SIM", "C4", "N", "RUF", "D100", "D101", "D102", "D103"]
 
-# Symboles mathématiques employés comme tels (ρ de Spearman, η rapport de corrélation) :
-# les autoriser plutôt que RUF001/RUF003 ne les prenne pour des lettres latines ambiguës.
-allowed-confusables = ["ρ", "η"]
+# Symboles mathématiques employés comme tels (ρ de Spearman, η rapport de corrélation,
+# σ écart-type, × séparateur de dimensions) : les autoriser plutôt que RUF001/RUF003 ne
+# les prenne pour des lettres latines ambiguës.
+allowed-confusables = ["ρ", "η", "σ", "×"]
 
 # Les fonctions de test se documentent par leur nom (`test_...`) et leurs assertions :
 # ne pas exiger de docstring de module ni de fonction dans `tests/`.
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D100", "D103"]
+# X / y : notation standard du couple (features, cible) en apprentissage - conservée.
+"src/decrochage_l1/modeling/*.py" = ["N803", "N806"]
+"tests/test_modeling.py" = ["N806"]
 
 [tool.ruff.lint.isort]
 # Regroupe les imports du code interne dans un bloc distinct des paquets tiers.
