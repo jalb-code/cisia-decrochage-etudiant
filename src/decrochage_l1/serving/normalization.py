@@ -53,9 +53,15 @@ def add_derived(frame: pd.DataFrame) -> pd.DataFrame:
 
     Ce quotient est **dupliqué** de `build_gold` (le service ne repart pas des paliers) : un
     test d'anti-divergence garantit qu'ils restent identiques, et casserait si l'un changeait.
+    Chaque dérivée n'est ajoutée que si ses colonnes source sont présentes — un contrat qui
+    n'en déclare qu'une, ou un lot partiel, ne fait pas échouer la conformation.
     """
     out = frame.copy()
+    if "nb_devoirs_total" not in out:
+        return out
     denominator = out["nb_devoirs_total"].where(out["nb_devoirs_total"] > 0)
-    out["taux_rendu"] = out["nb_devoirs_rendus"] / denominator
-    out["ratio_retards"] = out["retards_rendus"] / denominator
+    if "nb_devoirs_rendus" in out:
+        out["taux_rendu"] = out["nb_devoirs_rendus"] / denominator
+    if "retards_rendus" in out:
+        out["ratio_retards"] = out["retards_rendus"] / denominator
     return out
