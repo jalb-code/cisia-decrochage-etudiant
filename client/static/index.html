@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr" data-theme="light" data-univers="symexo">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Décrochage L1 — aide à la décision</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">◆</span>
+          <span class="brand-name">décrochage L1</span>
+        </div>
+        <nav id="nav" class="nav"></nav>
+        <div class="sidebar-foot">maquette de présentation<br />hors périmètre livré</div>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <div class="topbar-title">
+            <h1>Décrochage L1 — aide à la décision</h1>
+            <span class="badge badge-soft">maquette — hors périmètre livré</span>
+          </div>
+          <div class="topbar-status">
+            <span id="service-pill" class="pill"><span class="dot"></span> <span id="service-label">…</span></span>
+            <span id="seuil-label" class="muted">seuil …</span>
+            <button id="btn-params" class="btn btn-ghost" title="Paramètres">
+              <i data-lucide="settings"></i>
+            </button>
+          </div>
+        </header>
+
+        <main id="content" class="content"></main>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

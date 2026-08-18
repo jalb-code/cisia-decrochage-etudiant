@@ -1,0 +1,409 @@
+/* Charte Symexo — sous-ensemble de tokens (teal de marque), thème clair. Aucune couleur en
+   dur hors de ces variables ; pas d'emoji ; typo Montserrat (titres) / Open Sans (corps). */
+:root {
+  --accent: #56b9ca;
+  --accent-deep: #2f8ea0; /* blanc-sur-teal en AA */
+  --accent-ink: #ffffff;
+  --accent-soft: #e9f5f8;
+
+  --bg: #f6f8f9;
+  --surface: #ffffff;
+  --surface-2: #fbfcfd;
+  --border: #e2e7ea;
+  --text: #17242a;
+  --muted: #5c6b73;
+
+  --success: #2e7d5b;
+  --warning: #b7791f; /* « aggrave » : ambre, pas de rouge alarmiste */
+  --danger: #c0392b;
+
+  --protege: var(--accent-deep);
+  --aggrave: var(--warning);
+
+  --radius: 10px;
+  --radius-sm: 7px;
+  --shadow: 0 1px 2px rgba(20, 40, 50, 0.06), 0 2px 8px rgba(20, 40, 50, 0.04);
+  --space: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: "Open Sans", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  font-size: 14px;
+}
+h1,
+h2,
+h3 {
+  font-family: "Montserrat", system-ui, sans-serif;
+  font-weight: 700;
+  margin: 0;
+}
+a {
+  color: var(--accent-deep);
+}
+.muted {
+  color: var(--muted);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+/* --- Barre latérale --- */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  padding: 6px 8px 18px;
+}
+.brand-mark {
+  color: var(--accent);
+  font-size: 20px;
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.nav button:hover {
+  background: var(--surface-2);
+}
+.nav button.active {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+.nav i {
+  width: 18px;
+  height: 18px;
+}
+.sidebar-foot {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 12px 8px 0;
+  line-height: 1.5;
+}
+
+/* --- Barre du haut --- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.topbar-title h1 {
+  font-size: 17px;
+}
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* --- Contenu --- */
+.content {
+  padding: 24px;
+  max-width: 1120px;
+}
+.page-head {
+  margin-bottom: 18px;
+}
+.page-head h2 {
+  font-size: 20px;
+}
+.page-head p {
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
+/* --- Cartes, grilles --- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-bottom: 18px;
+}
+.card h3 {
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.kpi .v {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+}
+.kpi .l {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.grid-form {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+/* --- Champs --- */
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+label.field .req {
+  color: var(--danger);
+}
+input,
+select {
+  font: inherit;
+  color: var(--text);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+input:focus,
+select:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* --- Boutons --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--accent-deep);
+  color: var(--accent-ink);
+}
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.btn i {
+  width: 16px;
+  height: 16px;
+}
+.row-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* --- Badges & pastilles --- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-soft {
+  background: #fff4e0;
+  color: #8a5a00;
+}
+.badge-signale {
+  background: #fdecea;
+  color: var(--danger);
+}
+.badge-non {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pill .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.pill.ok .dot {
+  background: var(--success);
+}
+.pill.ko .dot {
+  background: var(--danger);
+}
+
+/* --- Tables --- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th,
+td {
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+}
+tr.clickable {
+  cursor: pointer;
+}
+tr.clickable:hover {
+  background: var(--surface-2);
+}
+
+/* --- Barres divergentes d'explicabilité --- */
+.contrib {
+  display: grid;
+  grid-template-columns: 160px 1fr 64px;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 12px;
+}
+.contrib .bar {
+  position: relative;
+  height: 14px;
+  background: linear-gradient(90deg, transparent 49.6%, var(--border) 49.6%, var(--border) 50.4%, transparent 50.4%);
+}
+.contrib .fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 3px;
+}
+.contrib .fill.protege {
+  right: 50%;
+  background: var(--protege);
+}
+.contrib .fill.aggrave {
+  left: 50%;
+  background: var(--aggrave);
+}
+.contrib .val {
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Alerte & avertissement --- */
+.alert {
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.alert-warn {
+  background: #fff4e0;
+  color: #7a5200;
+  border: 1px solid #f0d9a8;
+}
+.note-art22 {
+  font-size: 12px;
+  color: var(--muted);
+  border-left: 3px solid var(--accent);
+  padding: 6px 12px;
+  margin-top: 12px;
+}
+
+/* --- Toast --- */
+.toast {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  background: var(--text);
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  z-index: 30;
+}
+
+.big-proba {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 40px;
+  line-height: 1;
+}
+.stat-row {
+  display: flex;
+  gap: 40px;
+  align-items: flex-end;
+}
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}

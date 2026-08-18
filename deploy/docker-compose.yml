@@ -63,3 +63,22 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+
+  # Maquette de présentation — page statique, HORS périmètre livré (sert la démonstration).
+  # La clé d'API est saisie côté navigateur (localStorage) : posture démo, usage localhost.
+  client:
+    build:
+      context: ../client
+      dockerfile: Dockerfile
+    image: decrochage-l1-client
+    ports:
+      - "8080:80"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - api
