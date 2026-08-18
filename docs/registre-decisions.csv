@@ -2,7 +2,7 @@ id,question,posee_en,tranchee_en,decision,perimetre,statut
 D01,Les jeux de données doivent-ils entrer dans le dépôt ?,scaffolding,scaffolding,"Données hors dépôt ; approvisionnement documenté (README)",minimal,tranchée
 D02,À quelles conditions recourir à l'assistance IA (Claude Code) de façon défendable ?,scaffolding,scaffolding,"Socle IA cadré, human-in-the-loop : l'humain tranche, agents en lecture seule",optimal,tranchée
 D03,Comment pondérer un décrochage manqué (FN) et un signalement à tort (FP) ?,§2,§2,"Asymétrie qualitative FN ≫ FP retenue ; départage sur ROC/AUC (indépendante du seuil, adaptée au déséquilibre modéré), complétée par la PR-AUC pour la classe minoritaire",minimal,tranchée
-D04,Quel seuil de décision retenir ?,§2,§12,"Non figé au cadrage (coût et capacité non fournis) ; calibrage multi-scénarios reporté en §12",minimal,reportée
+D04,Quel seuil de décision retenir ?,§2,§9,"Non figé au cadrage (coût/capacité non fournis) ; point de fonctionnement fixé en §9 sur les probabilités OOF sous hypothèse de capacité déclarée ; §12 en mesure l'effet sur le test",minimal,reportée
 D05,L'explicabilité : quel impact sur la solution et le choix du modèle ?,§2,§2,"Contrainte de conception : restitution SHAP globale + locale ; critère du choix de modèle",minimal,tranchée
 D06,Quel rythme d'usage et quel point d'entrée pour le scoring ?,§2,§2,"Une campagne par an sur toute la promotion, en une passe (endpoint batch /predict-cohorte) ; pas de besoin temps réel",minimal,tranchée
 D07,commentaire_tuteur est-il dans le périmètre de scoring à mi-S1 ?,§3,§3,"Hors périmètre : présumé rédigé en fin de S1 (contenu de bilan + ~49 % de vides)",minimal,tranchée
