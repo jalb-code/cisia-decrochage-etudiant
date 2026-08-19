@@ -6,16 +6,10 @@ L'artefact déployable tient en trois fichiers dans `models_dir` : le pipeline `
 de sérialisation qu'appelle le notebook au §10 ; `EntrepotModele` est ce que le service
 charge au démarrage.
 
-Deux garde-fous sont **vérifiés à l'exécution**, pas seulement affirmés :
-
-- la fiche est cohérente (`validate`) — sinon on n'écrit pas l'artefact ;
-- le modèle **n'attend aucune colonne interdite** — l'intersection entre les variables
-  qu'il consomme et les exclusions de la fiche fait échouer le chargement, au lieu de servir
-  un modèle qui fuiterait.
-
-Un échec de chargement **n'interrompt pas** le service : l'erreur est mémorisée et la sonde
-de disponibilité l'expose. Un service qui refuse de démarrer ne laisse aucune trace ; un
-service qui démarre et se déclare indisponible en laisse une.
+La fiche est vérifiée cohérente (`validate`) avant écriture — sinon on n'écrit pas l'artefact.
+Un échec de chargement **n'interrompt pas** le service : l'erreur est mémorisée et la sonde de
+disponibilité l'expose. Un service qui refuse de démarrer ne laisse aucune trace ; un service
+qui démarre et se déclare indisponible en laisse une.
 """
 
 from dataclasses import dataclass
@@ -41,15 +35,6 @@ class Bundle:
     regressor: Pipeline  # cible `moyenne_finale` : note estimée /20
 
 
-def _check_no_leakage(contract: ServiceContract, classifier: Pipeline) -> None:
-    """Refuse un modèle qui attendrait une colonne déclarée interdite par la fiche."""
-    forbidden = {exclusion.column for exclusion in contract.facts.exclusions}
-    features = set(getattr(classifier, "feature_names_in_", ()))
-    leak = forbidden & features
-    if leak:
-        raise ValueError(f"le modèle attend des colonnes interdites (fuite) : {sorted(leak)}")
-
-
 def save_bundle(
     models_dir: Path,
     *,
@@ -57,9 +42,8 @@ def save_bundle(
     classifier: Pipeline,
     regressor: Pipeline,
 ) -> None:
-    """Sérialise l'artefact déployable (§10), après avoir vérifié fiche et absence de fuite."""
+    """Sérialise l'artefact déployable (§10), après avoir vérifié la cohérence de la fiche."""
     contract.validate()
-    _check_no_leakage(contract, classifier)
     models_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(classifier, models_dir / CLASSIFIER_FILE)
     joblib.dump(regressor, models_dir / REGRESSOR_FILE)
@@ -83,7 +67,6 @@ class EntrepotModele:
             classifier = joblib.load(models_dir / CLASSIFIER_FILE)
             regressor = joblib.load(models_dir / REGRESSOR_FILE)
             contract = contract_mod.load(models_dir / CONTRACT_FILE)
-            _check_no_leakage(contract, classifier)
             self._bundle = Bundle(contract=contract, classifier=classifier, regressor=regressor)
             self._error = None
         except Exception as exception:

@@ -1,24 +1,25 @@
-"""Schémas d'entrée et de sortie du service — enveloppes de requête et mise en forme JSON.
+"""Contrat d'entrée/sortie de l'API — schémas Pydantic typés.
 
-Le dossier n'est **pas** un modèle Pydantic à champs figés : ses colonnes, bornes et
-modalités viennent de la fiche (runtime), pas d'une déclaration statique. Le contrat que
-consomme le client est donc publié par `/v1/modele` (`fiche_to_dict`), d'où l'interface
-génère son formulaire — plutôt que recopié dans un schéma qui mentirait au premier
-changement. Ici : l'enveloppe des requêtes, et les fonctions qui rendent les objets du
-service en dictionnaires JSON-sérialisables (NaN ramené à `null`).
+L'entrée est **un modèle Pydantic à champs figés** (`PredictEtudiantForm`) : types, bornes et
+modalités déclarés ici font foi, `extra="forbid"` refuse tout champ hors périmètre. C'est la
+source de vérité du contrat d'entrée ; un test de non-écart garantit qu'il couvre exactement
+les features du modèle. Les features **dérivées** (`taux_rendu`, `ratio_retards`) n'y figurent
+pas : le service les calcule après validation (`normalization.add_derived`).
+
+Sortie : probabilité d'`abandon`, note `moyenne_finale` bornée, contributions par thème, et
+l'avertissement de l'article 22 (aide à la décision, décision humaine). La fiche (`ServiceContract`)
+porte, elle, ce qu'un schéma d'entrée ne sait pas exprimer : seuil, dérive, thèmes, référence.
 """
 
 import math
-from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from decrochage_l1.serving.contract import ServiceContract
 from decrochage_l1.serving.drift import CampaignDrift
 from decrochage_l1.serving.explain import Contributions
 from decrochage_l1.serving.scoring import DossierScore
-from decrochage_l1.serving.validation import RowRejection
 
 # Mention systématique en sortie : matérialise l'absence de décision automatisée (art. 22).
 AVERTISSEMENT = (
@@ -29,13 +30,144 @@ AVERTISSEMENT = (
 
 LOT_MAX = 10_000  # plafond d'un lot : un refus explicite plutôt qu'un épuisement mémoire
 
+# Modalités canoniques (minuscule, sans accent) — miroir des modalités du modèle.
+Filiere = Literal[
+    "biologie",
+    "droit",
+    "gestion",
+    "informatique",
+    "lettres",
+    "mathematiques",
+    "psychologie",
+    "staps",
+]
+BacType = Literal["general", "technologique", "professionnel"]
+MentionBac = Literal["passable", "assez bien", "bien", "tres bien"]
 
-class CampaignRequest(BaseModel):
-    """Un lot de dossiers bruts. `list[dict]` **délibérément** : une ligne invalide ne doit
-    pas faire échouer la requête entière — chaque ligne est validée séparément.
+
+class PredictEtudiantForm(BaseModel):
+    """Relevé d'un étudiant à mi-S1 — le contrat d'entrée d'un scoring précoce.
+
+    Champs requis = ceux sans manquant observé ; champs optionnels (déclaratifs, 4-8 % de
+    manquants) laissés à `None`, imputés par le pipeline. Les cohérences inter-champs
+    (`retards ≤ rendus ≤ total`) sont vérifiées ici, refus explicite sinon.
     """
 
-    dossiers: list[dict[str, Any]] = Field(min_length=1, max_length=LOT_MAX)
+    model_config = ConfigDict(extra="forbid")  # tout champ hors périmètre -> 422 nommant le champ
+
+    reference_dossier: str | None = Field(
+        None, description="Référence opaque du dossier, renvoyée telle quelle (jamais explicative)."
+    )
+
+    # --- Requis (0 % de manquants dans les données) ---
+    age: int = Field(..., ge=16, le=99, examples=[19])
+    filiere: Filiere = Field(..., examples=["informatique"])
+    bac_type: BacType = Field(..., examples=["general"])
+    taux_presence_pct: float = Field(..., ge=0, le=100, examples=[82.0])
+    heures_lms_total: float = Field(..., ge=0, examples=[42.0])  # grandeur ouverte, sans plafond
+    nb_ue_total: int = Field(..., ge=1, examples=[6])
+    nb_devoirs_total: int = Field(..., ge=1, examples=[12])  # >= 1 : dénominateur des dérivées
+    nb_devoirs_rendus: int = Field(..., ge=0, examples=[8])
+    retards_rendus: int = Field(..., ge=0, examples=[1])
+    messages_forum: int = Field(..., ge=0, examples=[3])
+
+    # --- Optionnels (manquants 4-8 %) -> imputés par le pipeline ---
+    mention_bac: MentionBac | None = Field(None, examples=["bien"])
+    motivation: float | None = Field(None, ge=1, le=5, examples=[3.0])
+    satisfaction: float | None = Field(None, ge=1, le=5, examples=[4.0])
+    sentiment_appartenance: float | None = Field(None, ge=1, le=5, examples=[3.0])
+
+    @model_validator(mode="after")
+    def _coherences(self) -> "PredictEtudiantForm":
+        """Refuse les incohérences inter-champs : retards ≤ rendus ≤ total."""
+        if self.nb_devoirs_rendus > self.nb_devoirs_total:
+            raise ValueError(
+                f"nb_devoirs_rendus ({self.nb_devoirs_rendus}) > "
+                f"nb_devoirs_total ({self.nb_devoirs_total})"
+            )
+        if self.retards_rendus > self.nb_devoirs_rendus:
+            raise ValueError(
+                f"retards_rendus ({self.retards_rendus}) > "
+                f"nb_devoirs_rendus ({self.nb_devoirs_rendus})"
+            )
+        return self
+
+
+# Colonnes d'entrée du modèle = champs du formulaire hors référence de dossier.
+INPUT_FIELDS = tuple(f for f in PredictEtudiantForm.model_fields if f != "reference_dossier")
+
+
+class PredictCohorteForm(BaseModel):
+    """Un lot de dossiers. `list[dict]` **délibérément** : chaque ligne est validée séparément
+    contre `PredictEtudiantForm`, une ligne invalide ne fait pas échouer la requête entière.
+    """
+
+    dossiers: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        max_length=LOT_MAX,
+        description="Lot de dossiers ; chaque élément suit PredictEtudiantForm, "
+        "validé ligne à ligne (refus partiel).",
+        json_schema_extra={"items": {"$ref": "#/components/schemas/PredictEtudiantForm"}},
+    )
+
+
+class ContributionTheme(BaseModel):
+    """Contribution agrégée d'un thème à la log-cote (signée : protège < 0 < aggrave)."""
+
+    theme: str
+    contribution: float
+
+
+class ContributionVariable(BaseModel):
+    """Contribution d'une variable à la log-cote (signée : protège < 0 < aggrave)."""
+
+    variable: str
+    contribution: float
+
+
+class PredictEtudiantReponse(BaseModel):
+    """Résultat d'un dossier : probabilité, note estimée, indicateur et explicabilité."""
+
+    reference_dossier: str | None
+    proba_abandon: float = Field(..., ge=0, le=1)
+    moyenne_finale: float = Field(..., ge=0, le=20)
+    signaled: bool | None  # None quand l'indicateur n'est pas exposé (probabilité seule)
+    seuil_applique: float
+    provenance_seuil: str
+    version_modele: str
+    contributions_theme: list[ContributionTheme]
+    contributions_variable: list[ContributionVariable]  # détail dépliable sous les thèmes
+    avertissement: str = AVERTISSEMENT
+
+
+class DossierRefuse(BaseModel):
+    """Une ligne refusée : son rang (base 0), sa référence si lisible, et ses motifs."""
+
+    index: int
+    reference_dossier: str | None
+    erreurs: list[dict]  # {champ, message}, tel que produit par la validation Pydantic
+
+
+class SyntheseCohorte(BaseModel):
+    """Synthèse d'une campagne : reçus, scorés, refusés, et part signalée si exposée."""
+
+    dossiers_recus: int
+    dossiers_scores: int
+    dossiers_refuses: int
+    part_signalee: float | None
+
+
+class PredictCohorteReponse(BaseModel):
+    """Réponse d'une campagne : résultats dans l'ordre reçu, refus, synthèse, dérive optionnelle."""
+
+    seuil_applique: float
+    provenance_seuil: str
+    resultats: list[PredictEtudiantReponse]
+    refuses: list[DossierRefuse]
+    synthese: SyntheseCohorte
+    avertissement: str = AVERTISSEMENT
+    derive: dict | None = None
 
 
 def _clean(value: Any) -> Any:
@@ -45,39 +177,35 @@ def _clean(value: Any) -> Any:
     return value
 
 
-def contributions_to_dict(contributions: Contributions, *, top: int | None = None) -> dict:
-    """Contributions triées par amplitude ; `top` limite aux plus fortes (vue campagne)."""
-    by_variable = sorted(contributions.by_variable.items(), key=lambda kv: abs(kv[1]), reverse=True)
+def _themes(contributions: Contributions) -> list[ContributionTheme]:
+    """Contributions par thème, triées par amplitude décroissante."""
+    ordered = sorted(contributions.by_theme.items(), key=lambda kv: abs(kv[1]), reverse=True)
+    return [ContributionTheme(theme=t, contribution=v) for t, v in ordered]
+
+
+def _variables(contributions: Contributions, top: int | None) -> list[ContributionVariable]:
+    """Contributions par variable, triées par amplitude ; `top` limite aux plus fortes (lot)."""
+    ordered = sorted(contributions.by_variable.items(), key=lambda kv: abs(kv[1]), reverse=True)
     if top is not None:
-        by_variable = by_variable[:top]
-    by_theme = sorted(contributions.by_theme.items(), key=lambda kv: abs(kv[1]), reverse=True)
-    return {
-        "base_logit": contributions.base_logit,
-        "total_logit": contributions.total_logit,
-        "probability": contributions.probability,
-        "by_variable": [{"variable": k, "contribution": v} for k, v in by_variable],
-        "by_theme": [{"theme": k, "contribution": v} for k, v in by_theme],
-    }
+        ordered = ordered[:top]
+    return [ContributionVariable(variable=v, contribution=c) for v, c in ordered]
 
 
-def score_to_dict(score: DossierScore, *, top: int | None = None) -> dict:
-    """Résultat d'un dossier en JSON ; `top` tronque aux contributions les plus fortes."""
-    return {
-        "reference": score.reference,
-        "probability": score.probability,
-        "moyenne_finale": score.moyenne_finale,
-        "signaled": score.signaled,
-        "contributions": contributions_to_dict(score.contributions, top=top),
-    }
-
-
-def rejection_to_dict(rejection: RowRejection) -> dict:
-    """Ligne refusée : rang, référence et un motif par champ en cause."""
-    return {
-        "index": rejection.index,
-        "reference": rejection.reference,
-        "errors": [{"field": e.field, "message": e.message} for e in rejection.errors],
-    }
+def etudiant_reponse(
+    score: DossierScore, *, seuil: float, provenance: str, version: str, top: int | None = None
+) -> PredictEtudiantReponse:
+    """Assemble la réponse d'un dossier ; `top` borne le détail par variable (vue campagne)."""
+    return PredictEtudiantReponse(
+        reference_dossier=score.reference,
+        proba_abandon=score.probability,
+        moyenne_finale=score.moyenne_finale,
+        signaled=score.signaled,
+        seuil_applique=seuil,
+        provenance_seuil=provenance,
+        version_modele=version,
+        contributions_theme=_themes(score.contributions),
+        contributions_variable=_variables(score.contributions, top),
+    )
 
 
 def drift_to_dict(drift_result: CampaignDrift) -> dict:
@@ -102,41 +230,19 @@ def drift_to_dict(drift_result: CampaignDrift) -> dict:
 
 
 def fiche_to_dict(contract: ServiceContract) -> dict:
-    """La fiche publiée par `/v1/modele` : de quoi générer un formulaire et vérifier le périmètre.
-
-    Porte les colonnes et leur typage, les modalités canoniques, les bornes et cohérences,
-    le seuil par défaut, les seuils de dérive, et les **exclusions avec leur motif** — un
-    intégrateur voit ainsi ce que le modèle refuse, et pourquoi, sans lire de rapport.
+    """La fiche publiée par `/v1/modele` : descripteur de service (le contrat d'entrée, lui,
+    est publié par l'OpenAPI du schéma `PredictEtudiantForm`).
     """
     facts, defaults = contract.facts, contract.defaults
     return {
         "version": facts.version,
-        "input_columns": list(facts.input_columns),
-        "derived_columns": list(facts.derived_columns),
         "numeric": list(facts.numeric),
         "categorical": list(facts.categorical),
-        "nominal_modalities": {k: list(v) for k, v in facts.nominal_modalities.items()},
-        "exclusions": [{"column": e.column, "motif": e.motif} for e in facts.exclusions],
         "themes": dict(facts.themes),
-        "units": {k: list(v) for k, v in facts.units.items()},
-        "bounds": {
-            k: {"minimum": b.minimum, "maximum": b.maximum} for k, b in defaults.bounds.items()
-        },
-        "coherence": [{"left": r.left, "right": r.right} for r in defaults.coherence],
         "seuil_defaut": defaults.threshold,
         "derive": {
             "surveillance": defaults.drift_surveillance,
             "alerte": defaults.drift_alerte,
             "effectif_min": defaults.drift_effectif_min,
         },
-    }
-
-
-def synthese(n_recus: int, n_scores: int, n_refuses: int, part_signalee: float | None) -> Mapping:
-    """Synthèse d'une campagne : reçus, scorés, refusés, et part signalée si exposée."""
-    return {
-        "dossiers_recus": n_recus,
-        "dossiers_scores": n_scores,
-        "dossiers_refuses": n_refuses,
-        "part_signalee": part_signalee,
     }

@@ -6,30 +6,31 @@ Cinq principes tenus par le code :
   n'apparaît que si l'exploitation l'expose, et le seuil est un **paramètre** (fiche, ou
   surcharge d'environnement, ou `?seuil=` d'un appel), jamais dans les poids ;
 - **le service ne conserve rien** — aucune écriture, aucune base ;
-- **le refus de fuite est structurel** — un champ hors périmètre est refusé en le nommant ;
-- **`/health` dit si le processus vit, `/ready` si le modèle est utilisable** — deux sondes
-  distinctes ;
+- **l'entrée est typée** — `PredictEtudiantForm` valide types, bornes, modalités et cohérences ;
+  un champ hors périmètre est refusé en le nommant (`extra="forbid"`) ;
+- **`/health` dit si le processus vit, `/ready` si le modèle est utilisable** — deux sondes ;
 - **le modèle est chargé une fois**, au démarrage, via l'entrepôt injecté.
 
 Chaque réponse porte l'avertissement de l'article 22 : aide à la décision, la décision reste
-humaine. La route `/v1/predict-cohorte` est la principale (le régime réel est une campagne) ;
-`/v1/predict-etudiant` sert le test ponctuel d'un dossier.
+humaine. La route `/v1/predict-cohorte` est la principale (le régime réel est une campagne),
+validée **ligne à ligne** (une ligne invalide est refusée seule) ; `/v1/predict-etudiant` sert
+le test ponctuel d'un dossier.
 """
 
-from typing import Any
-
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request
+import pandas as pd
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
+from pydantic import ValidationError
 
 from decrochage_l1.config import settings as runtime_settings
-from decrochage_l1.serving import metrics, schemas, scoring, validation
+from decrochage_l1.serving import metrics, normalization, schemas, scoring
 from decrochage_l1.serving.contract import ServiceContract
 from decrochage_l1.serving.settings import ServiceSettings
 from decrochage_l1.serving.store import Bundle, EntrepotModele
 
-TOP_CONTRIBUTIONS_CAMPAGNE = 5  # une campagne n'expose que les facteurs principaux par ligne
+TOP_CONTRIBUTIONS_CAMPAGNE = 6  # une campagne n'expose que les facteurs principaux par ligne
 
 
 def _resolve_threshold(
@@ -54,6 +55,42 @@ def _threshold_provenance(seuil: float | None, service: ServiceSettings) -> str:
     return "configuration" if service.seuil_defaut is not None else "fiche"
 
 
+def _resolve_drift(service: ServiceSettings, contract: ServiceContract) -> tuple[float, float, int]:
+    """Bornes de dérive effectives : la configuration prime, sinon le défaut de la fiche.
+
+    Chaque borne se surcharge indépendamment ; l'ordre surveillance <= alerte et effectif_min > 0
+    sont revérifiés ici, car une surcharge d'exploitation pourrait les rompre.
+    """
+    defaults = contract.defaults
+    surveillance = (
+        service.drift_surveillance
+        if service.drift_surveillance is not None
+        else defaults.drift_surveillance
+    )
+    alerte = service.drift_alerte if service.drift_alerte is not None else defaults.drift_alerte
+    effectif_min = (
+        service.drift_effectif_min
+        if service.drift_effectif_min is not None
+        else defaults.drift_effectif_min
+    )
+    if not 0.0 <= surveillance <= alerte:
+        raise HTTPException(
+            status_code=422,
+            detail=f"seuils de dérive non ordonnés : surveillance={surveillance}, alerte={alerte}",
+        )
+    if effectif_min <= 0:
+        raise HTTPException(
+            status_code=422, detail=f"effectif minimal non positif : {effectif_min}"
+        )
+    return surveillance, alerte, effectif_min
+
+
+def _frame_entree(forms: list[schemas.PredictEtudiantForm]) -> pd.DataFrame:
+    """DataFrame des colonnes d'entrée du modèle (hors référence), dérivées ajoutées ensuite."""
+    lignes = [f.model_dump(exclude={"reference_dossier"}) for f in forms]
+    return normalization.add_derived(pd.DataFrame(lignes, columns=list(schemas.INPUT_FIELDS)))
+
+
 def create_app(
     *, entrepot: EntrepotModele | None = None, service_settings: ServiceSettings | None = None
 ) -> FastAPI:
@@ -67,12 +104,10 @@ def create_app(
     app.state.settings = service
     app.state.entrepot = entrepot
 
-    # État initial des métriques métier : disponibilité, seuil, séries de refus à zéro.
+    # État initial des métriques métier : disponibilité et seuil appliqué.
     metrics.set_model_loaded(entrepot.ready)
     if entrepot.ready:
-        contract = entrepot.bundle.contract
-        metrics.set_threshold(_resolve_threshold(None, service, contract))
-        metrics.init_perimeter_series(e.column for e in contract.facts.exclusions)
+        metrics.set_threshold(_resolve_threshold(None, service, entrepot.bundle.contract))
 
     if service.origins:
         app.add_middleware(
@@ -99,79 +134,112 @@ def create_app(
             )
         return entrepot_local.bundle
 
-    @app.post("/v1/predict-cohorte")
+    @app.post("/v1/predict-cohorte", response_model=schemas.PredictCohorteReponse)
     def predict_cohorte(
         request: Request,
-        payload: schemas.CampaignRequest,
+        payload: schemas.PredictCohorteForm,
         seuil: float | None = Query(default=None),
         derive: bool = Query(default=False),
         _: None = Depends(require_api_key),
         bundle: Bundle = Depends(require_ready),
-    ) -> dict:
+    ) -> schemas.PredictCohorteReponse:
         service_local: ServiceSettings = request.app.state.settings
         threshold = _resolve_threshold(seuil, service_local, bundle.contract)
-        result = validation.validate(
-            payload.dossiers, bundle.contract.facts, bundle.contract.defaults
-        )
-        metrics.observe_refusals(
-            result.rejections, {e.column for e in bundle.contract.facts.exclusions}
-        )
-        scores = scoring.score(
-            bundle,
-            result.accepted,
-            result.accepted_references,
-            threshold=threshold,
-            expose_indicator=service_local.exposer_indicateur,
-        )
+        provenance = _threshold_provenance(seuil, service_local)
+
+        # Validation ligne à ligne : une ligne invalide est refusée seule, motif à l'appui.
+        forms: list[schemas.PredictEtudiantForm] = []
+        positions: list[int] = []
+        refuses: list[schemas.DossierRefuse] = []
+        for i, brut in enumerate(payload.dossiers):
+            try:
+                forms.append(schemas.PredictEtudiantForm.model_validate(brut))
+                positions.append(i)
+            except ValidationError as erreur:
+                refuses.append(
+                    schemas.DossierRefuse(
+                        index=i,
+                        reference_dossier=brut.get("reference_dossier"),
+                        erreurs=[
+                            {"champ": ".".join(str(x) for x in e["loc"]), "message": e["msg"]}
+                            for e in erreur.errors()
+                        ],
+                    )
+                )
+
+        resultats: list[schemas.PredictEtudiantReponse] = []
+        frame = _frame_entree(forms) if forms else pd.DataFrame()
+        if forms:
+            scores = scoring.score(
+                bundle,
+                frame,
+                [f.reference_dossier for f in forms],
+                threshold=threshold,
+                expose_indicator=service_local.exposer_indicateur,
+            )
+            resultats = [
+                schemas.etudiant_reponse(
+                    s,
+                    seuil=threshold,
+                    provenance=provenance,
+                    version=bundle.contract.facts.version,
+                    top=TOP_CONTRIBUTIONS_CAMPAGNE,
+                )
+                for s in scores
+            ]
+
         part_signalee = None
-        if service_local.exposer_indicateur and scores:
-            part_signalee = sum(1 for s in scores if s.signaled) / len(scores)
+        if service_local.exposer_indicateur and resultats:
+            part_signalee = sum(1 for r in resultats if r.signaled) / len(resultats)
 
-        body = {
-            "seuil_applique": threshold,
-            "provenance_seuil": _threshold_provenance(seuil, service_local),
-            "resultats": [schemas.score_to_dict(s, top=TOP_CONTRIBUTIONS_CAMPAGNE) for s in scores],
-            "refuses": [schemas.rejection_to_dict(r) for r in result.rejections],
-            "synthese": schemas.synthese(
-                len(payload.dossiers), len(scores), len(result.rejections), part_signalee
+        reponse = schemas.PredictCohorteReponse(
+            seuil_applique=threshold,
+            provenance_seuil=provenance,
+            resultats=resultats,
+            refuses=refuses,
+            synthese=schemas.SyntheseCohorte(
+                dossiers_recus=len(payload.dossiers),
+                dossiers_scores=len(resultats),
+                dossiers_refuses=len(refuses),
+                part_signalee=part_signalee,
             ),
-            "avertissement": schemas.AVERTISSEMENT,
-        }
-        if derive:
-            body["derive"] = schemas.drift_to_dict(scoring.assess_drift(bundle, result.accepted))
-        return body
+        )
+        if derive and forms:
+            surveillance, alerte, effectif_min = _resolve_drift(service_local, bundle.contract)
+            reponse.derive = schemas.drift_to_dict(
+                scoring.assess_drift(
+                    bundle,
+                    frame,
+                    seuil_surveillance=surveillance,
+                    seuil_alerte=alerte,
+                    effectif_min=effectif_min,
+                )
+            )
+        return reponse
 
-    @app.post("/v1/predict-etudiant")
+    @app.post("/v1/predict-etudiant", response_model=schemas.PredictEtudiantReponse)
     def predict_etudiant(
         request: Request,
-        dossier: dict[str, Any] = Body(...),
+        form: schemas.PredictEtudiantForm,
         seuil: float | None = Query(default=None),
         _: None = Depends(require_api_key),
         bundle: Bundle = Depends(require_ready),
-    ) -> dict:
+    ) -> schemas.PredictEtudiantReponse:
         service_local: ServiceSettings = request.app.state.settings
         threshold = _resolve_threshold(seuil, service_local, bundle.contract)
-        result = validation.validate([dossier], bundle.contract.facts, bundle.contract.defaults)
-        metrics.observe_refusals(
-            result.rejections, {e.column for e in bundle.contract.facts.exclusions}
-        )
-        if result.rejections:
-            raise HTTPException(
-                status_code=422, detail=schemas.rejection_to_dict(result.rejections[0])
-            )
         score = scoring.score(
             bundle,
-            result.accepted,
-            result.accepted_references,
+            _frame_entree([form]),
+            [form.reference_dossier],
             threshold=threshold,
             expose_indicator=service_local.exposer_indicateur,
         )[0]
-        return {
-            "seuil_applique": threshold,
-            "provenance_seuil": _threshold_provenance(seuil, service_local),
-            "resultat": schemas.score_to_dict(score),
-            "avertissement": schemas.AVERTISSEMENT,
-        }
+        return schemas.etudiant_reponse(
+            score,
+            seuil=threshold,
+            provenance=_threshold_provenance(seuil, service_local),
+            version=bundle.contract.facts.version,
+        )
 
     @app.get("/v1/modele")
     def modele(_: None = Depends(require_api_key), bundle: Bundle = Depends(require_ready)) -> dict:

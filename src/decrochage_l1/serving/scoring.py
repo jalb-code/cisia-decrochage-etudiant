@@ -2,8 +2,9 @@
 
 Assemble ce que le service sait faire — probabilité d'`abandon`, note `moyenne_finale`
 estimée, contributions explicatives, dérive de campagne — à partir d'un `Bundle` chargé et
-d'un lot **déjà validé et conformé** (`validation`). Le calcul est **groupé** : une seule
-prédiction vectorisée par modèle, une seule passe d'explicabilité.
+d'un lot **déjà validé** (schéma `schemas.PredictEtudiantForm`) et **conformé** (dérivées
+ajoutées par `normalization.add_derived`). Le calcul est **groupé** : une seule prédiction
+vectorisée par modèle, une seule passe d'explicabilité.
 
 Le seuil de décision est **passé** (défaut de la fiche ou surcharge d'exploitation) ; la
 sortie secondaire est **bornée [0 ; 20]** (le régresseur linéaire peut extrapoler au-delà) ;
@@ -75,14 +76,22 @@ def score(
     ]
 
 
-def assess_drift(bundle: Bundle, accepted: pd.DataFrame) -> drift.CampaignDrift:
+def assess_drift(
+    bundle: Bundle,
+    accepted: pd.DataFrame,
+    *,
+    seuil_surveillance: float,
+    seuil_alerte: float,
+    effectif_min: int,
+) -> drift.CampaignDrift:
     """Mesure la dérive du lot contre la distribution de référence de la fiche.
 
     Sans référence embarquée, la dérive est déclarée non mesurable — les prédictions restent
     servies : refuser de scorer parce que la surveillance manque punirait la campagne pour un
-    défaut d'outillage. Seuils et effectif minimal viennent de la fiche.
+    défaut d'outillage. Les seuils et l'effectif minimal sont **passés** (défaut de la fiche,
+    surchargeable par l'exploitation), jamais lus ici : le module porte la mesure, pas la politique.
     """
-    facts, defaults = bundle.contract.facts, bundle.contract.defaults
+    facts = bundle.contract.facts
     reference = facts.drift_reference
     if reference is None:
         return drift.CampaignDrift(
@@ -100,7 +109,7 @@ def assess_drift(bundle: Bundle, accepted: pd.DataFrame) -> drift.CampaignDrift:
         accepted,
         numeric=numeric,
         categorical=categorical,
-        seuil_surveillance=defaults.drift_surveillance,
-        seuil_alerte=defaults.drift_alerte,
-        effectif_min=defaults.drift_effectif_min,
+        seuil_surveillance=seuil_surveillance,
+        seuil_alerte=seuil_alerte,
+        effectif_min=effectif_min,
     )

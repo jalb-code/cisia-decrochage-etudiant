@@ -21,6 +21,11 @@ class ServiceSettings(BaseSettings):
     seuil_defaut: float | None = None  # surcharge du seuil de la fiche ; None => celui de la fiche
     cors_origins: str = ""  # origines autorisées pour le navigateur, séparées par des virgules
     monitoring_actif: bool = True  # exposer /metrics
+    # Bornes de dérive (PSI) surchargeant la fiche ; None => valeur de la fiche. L'ordre
+    # surveillance <= alerte et effectif_min > 0 sont revérifiés à la résolution.
+    drift_surveillance: float | None = None  # PSI à partir duquel « à surveiller »
+    drift_alerte: float | None = None  # PSI à partir duquel « alerte »
+    drift_effectif_min: int | None = None  # taille de lot sous laquelle la dérive n'est pas mesurée
 
     @property
     def allowed_keys(self) -> set[str]:

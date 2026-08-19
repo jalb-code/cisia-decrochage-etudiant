@@ -85,7 +85,7 @@ Pile complète (service + Prometheus + Grafana + maquette de démonstration) :
 
 ```bash
 cp .env.exemple .env          # renseigner DECROCHAGE_API_KEYS
-docker compose -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
 ```
 
 | Surface | URL |

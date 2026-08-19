@@ -11,12 +11,102 @@
   "annotations": { "list": [] },
   "panels": [
     {
+      "id": 100,
+      "type": "row",
+      "title": "Métriques techniques — RED & trafic",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Trafic par route et code HTTP (RPS)",
+      "description": "Débit par route et code de retour. Les 4xx ne sont pas des défauts (clé absente, colonne interdite, valeur hors bornes) ; seuls les 5xx mettent le service en cause.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 18, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "calcs": ["lastNotNull", "max"] } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (handler, status) (rate(http_requests_total[5m]))", "legendFormat": "{{handler}} {{status}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Latence par route — p50 · p95 · p99",
+      "description": "p50 = latence ressentie par la majorité ; p95 = dégradations ; p99 = requêtes très lentes. Les deux routes n'ont pas la même unité de travail ; les seuils d'alerte sont distincts (1 s et 30 s).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 18, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "calcs": ["lastNotNull", "max"] } },
+      "targets": [
+        { "refId": "A", "expr": "label_replace(histogram_quantile(0.50, sum by (le, handler) (rate(http_request_duration_seconds_bucket[5m]))), \"route\", \"$1\", \"handler\", \"/v1/predict-(.*)\")", "legendFormat": "{{route}} p50", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "B", "expr": "label_replace(histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket[5m]))), \"route\", \"$1\", \"handler\", \"/v1/predict-(.*)\")", "legendFormat": "{{route}} p95", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "refId": "C", "expr": "label_replace(histogram_quantile(0.99, sum by (le, handler) (rate(http_request_duration_seconds_bucket[5m]))), \"route\", \"$1\", \"handler\", \"/v1/predict-(.*)\")", "legendFormat": "{{route}} p99", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Taux d'erreur 5xx",
+      "description": "Part des réponses 5xx sur l'ensemble des appels — l'indicateur principal de santé. L'alerte se déclenche au-delà de 1 % sur 10 min (règle TauxDErreurEleve).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": { "thresholdsStyle": { "mode": "line" } },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 0.01, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "showLegend": false } },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))", "legendFormat": "taux 5xx", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Erreurs HTTP 4xx / 5xx",
+      "description": "Empilement par code de retour, pour distinguer les refus de contrat (4xx, légitimes) des défaillances du service (5xx).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 9 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "stacking": { "mode": "normal", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (status) (rate(http_requests_total{status=~\"4..|5..\"}[5m]))", "legendFormat": "{{status}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 101,
+      "type": "row",
+      "title": "Métriques métier — modèle, politique, contrat",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "panels": []
+    },
+    {
       "id": 1,
       "type": "stat",
       "title": "Modèle chargé",
       "description": "Distingue « le processus répond » de « le processus peut prédire » : 1 = utilisable, 0 = indisponible.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 18 },
       "fieldConfig": {
         "defaults": {
           "mappings": [
@@ -35,7 +125,7 @@
       "title": "Seuil de décision appliqué",
       "description": "Paramètre métier, modifiable sans réentraînement. L'afficher permet de constater qu'un déploiement n'applique pas la politique attendue.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 18 },
       "fieldConfig": { "defaults": { "decimals": 2 }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "decrochage_seuil_defaut", "datasource": { "type": "prometheus", "uid": "prometheus" } }
@@ -47,34 +137,10 @@
       "title": "Refus de périmètre (24 h)",
       "description": "Incident de contrat côté source, pas défaillance du service : le refus a fonctionné.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 18 },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "sum(increase(decrochage_refus_perimetre_total[24h]))", "datasource": { "type": "prometheus", "uid": "prometheus" } }
-      ]
-    },
-    {
-      "id": 4,
-      "type": "timeseries",
-      "title": "Appels par route et code de retour",
-      "description": "Les 4xx ne sont pas des défauts (clé absente, colonne interdite, valeur hors bornes) ; seuls les 5xx mettent le service en cause.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
-      "targets": [
-        { "refId": "A", "expr": "sum by (handler, status) (rate(http_requests_total[5m]))", "legendFormat": "{{handler}} {{status}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
-      ]
-    },
-    {
-      "id": 5,
-      "type": "timeseries",
-      "title": "Durée par route — 95ᵉ centile",
-      "description": "Les deux routes n'ont pas la même unité de travail ; les seuils d'alerte sont distincts (1 s et 30 s).",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
-      "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "{{handler}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ]
     },
     {
@@ -83,7 +149,7 @@
       "title": "Refus de périmètre, par colonne transmise",
       "description": "Nommer la colonne est ce qui rend l'incident corrigeable côté source.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "sum by (colonne) (increase(decrochage_refus_perimetre_total[1h]))", "legendFormat": "{{colonne}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
