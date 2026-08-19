@@ -1,0 +1,12 @@
+# Fournisseur de tableaux de bord : charge les JSON versionnés, mise à jour par l'UI désactivée.
+apiVersion: 1
+providers:
+  - name: decrochage-l1
+    orgId: 1
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

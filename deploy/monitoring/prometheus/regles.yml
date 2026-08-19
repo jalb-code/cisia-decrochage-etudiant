@@ -1,0 +1,89 @@
+# Règles d'alerte du service d'inférence — seuils CHIFFRÉS (C9). Chaque règle porte une
+# clause `for:` (au-delà de laquelle l'anomalie cesse d'être un accident), une `action`
+# (quoi faire, pas seulement ce qui ne va pas) et un `destinataire`. Leur ACHEMINEMENT vers
+# une personne (Alertmanager) est un choix d'établissement, hors périmètre livré (D37) : le
+# référentiel demande des seuils d'alerte, pas un routage de notifications.
+groups:
+  - name: disponibilite
+    rules:
+      - alert: ServiceInjoignable
+        expr: up{job="service-inference"} == 0
+        for: 2m
+        labels:
+          gravite: critique
+          destinataire: exploitant
+        annotations:
+          resume: "Le service d'inférence ne répond plus."
+          action: "Vérifier le conteneur `api` et le redémarrer ; ne pas produire de score en attendant."
+
+      - alert: ModeleNonCharge
+        expr: decrochage_modele_charge == 0
+        for: 2m
+        labels:
+          gravite: critique
+          destinataire: exploitant
+        annotations:
+          resume: "Le processus répond mais aucun modèle utilisable n'est chargé."
+          action: "Vérifier l'artefact déployé ; surtout ne pas produire de score dégradé."
+
+  - name: contrat
+    rules:
+      - alert: ColonneHorsPerimetreTransmise
+        expr: increase(decrochage_refus_perimetre_total[24h]) > 0
+        for: 5m
+        labels:
+          gravite: avertissement
+          destinataire: direction du numérique
+        annotations:
+          resume: "Une source transmet une variable hors périmètre ({{ $labels.colonne }})."
+          action: "Corriger l'export côté SI : la même variable reviendra à chaque campagne."
+
+      - alert: TauxDErreurEleve
+        expr: >
+          sum(rate(http_requests_total{status=~"5.."}[10m]))
+          / sum(rate(http_requests_total[10m])) > 0.01
+        for: 10m
+        labels:
+          gravite: critique
+          destinataire: exploitant
+        annotations:
+          resume: "Plus de 1 % de réponses 5xx sur 10 minutes."
+          action: "Consulter les journaux du service ; les 4xx sont des refus légitimes, seuls les 5xx le mettent en cause."
+
+  - name: performance
+    rules:
+      # Deux seuils, parce que les deux routes n'ont pas la même unité de travail : un seuil
+      # unique alerterait à chaque campagne, ou ne verrait jamais un appel unitaire dégradé.
+      - alert: LatenceDossierDegradee
+        expr: >
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler="/v1/predict-etudiant"}[15m])) by (le)) > 1
+        for: 15m
+        labels:
+          gravite: avertissement
+          destinataire: exploitant
+        annotations:
+          resume: "Latence p95 de /v1/predict-etudiant au-dessus de 1 s."
+          action: "Vérifier la charge du service et les ressources du conteneur."
+
+      - alert: LatenceCampagneDegradee
+        expr: >
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler="/v1/predict-cohorte"}[15m])) by (le)) > 30
+        for: 15m
+        labels:
+          gravite: avertissement
+          destinataire: exploitant
+        annotations:
+          resume: "Latence p95 de /v1/predict-cohorte au-dessus de 30 s."
+          action: "Une campagne de ~5 200 dossiers se score en ~1,5 s ; investiguer un facteur 20."
+
+  - name: politique
+    rules:
+      - alert: SeuilInattendu
+        expr: decrochage_seuil_defaut != 0.16
+        for: 5m
+        labels:
+          gravite: avertissement
+          destinataire: direction de la réussite étudiante
+        annotations:
+          resume: "Le seuil de décision appliqué diffère de la politique attendue (0,16)."
+          action: "Confirmer le changement de seuil ; s'il est voulu, mettre cette règle à jour avec la configuration."

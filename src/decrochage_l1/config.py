@@ -70,6 +70,16 @@ class Settings(BaseSettings):
         """Rapports générés (profilage HTML) — hors dépôt : ils citent des valeurs brutes."""
         return self.root_dir / "reports"
 
+    @property
+    def models_dir(self) -> Path:
+        """Artefacts modèle sérialisés (§10) — produits par le code, hors dépôt.
+
+        Y sont figés les pipelines déployés (`abandon`, `moyenne_finale`) et la fiche
+        d'identité qui les accompagne. Rien n'y est déposé à la main : le notebook les
+        écrit au §10, le service d'inférence les relit.
+        """
+        return self.root_dir / "models"
+
 
 # Instance partagée, importable partout : `from decrochage_l1.config import settings`.
 settings = Settings()

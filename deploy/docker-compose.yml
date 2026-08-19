@@ -1,0 +1,84 @@
+# Pile d'exploitation du dispositif : service d'inférence, collecteur, tableau de bord.
+# `docker compose -f deploy/docker-compose.yml up -d` depuis la racine du dépôt.
+# Le client de démonstration (hors périmètre livré) est ajouté séparément (client/).
+name: decrochage-l1
+
+services:
+  # Service d'inférence. Aucune écriture disque (« ne conserve rien ») : conteneur en lecture
+  # seule, /tmp en mémoire, pas d'élévation de privilèges, compte non root (défini au Dockerfile).
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: decrochage-l1-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Aucune clé par défaut : sans elle, les routes protégées répondent 503.
+      DECROCHAGE_API_KEYS: ${DECROCHAGE_API_KEYS:-}
+      DECROCHAGE_EXPOSER_INDICATEUR: ${DECROCHAGE_EXPOSER_INDICATEUR:-false}
+      DECROCHAGE_CORS_ORIGINS: ${DECROCHAGE_CORS_ORIGINS:-http://localhost:8080}
+      DECROCHAGE_MONITORING_ACTIF: "true"
+    volumes:
+      # L'artefact du §10, monté en lecture seule. Absent -> /ready 503, le service démarre quand même.
+      - ../models:/app/models:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      # La sonde de l'orchestrateur interroge /ready : « le service peut-il PRÉDIRE ? »
+      test: ["CMD", "python", "-c", "import urllib.request as r; r.urlopen('http://localhost:8000/ready')"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+    # `service_started` et non `service_healthy` : le collecteur doit tourner même quand le
+    # modèle n'est pas chargé — c'est justement l'incident que le tableau de bord donne à voir.
+    depends_on:
+      api:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_UTILISATEUR:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_MOT_DE_PASSE:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+  # Maquette de présentation — page statique, HORS périmètre livré (sert la démonstration).
+  # La clé d'API est saisie côté navigateur (localStorage) : posture démo, usage localhost.
+  client:
+    build:
+      context: ../client
+      dockerfile: Dockerfile
+    image: decrochage-l1-client
+    ports:
+      - "8080:80"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - api

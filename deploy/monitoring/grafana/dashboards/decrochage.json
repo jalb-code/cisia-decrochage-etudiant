@@ -1,0 +1,93 @@
+{
+  "uid": "decrochage-l1-service",
+  "title": "Décrochage L1 — service d'inférence",
+  "tags": ["decrochage-l1"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Modèle chargé",
+      "description": "Distingue « le processus répond » de « le processus peut prédire » : 1 = utilisable, 0 = indisponible.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "indisponible", "color": "red" }, "1": { "text": "prêt", "color": "green" } } }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "decrochage_modele_charge", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Seuil de décision appliqué",
+      "description": "Paramètre métier, modifiable sans réentraînement. L'afficher permet de constater qu'un déploiement n'applique pas la politique attendue.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "decimals": 2 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "decrochage_seuil_defaut", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Refus de périmètre (24 h)",
+      "description": "Incident de contrat côté source, pas défaillance du service : le refus a fonctionné.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(increase(decrochage_refus_perimetre_total[24h]))", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Appels par route et code de retour",
+      "description": "Les 4xx ne sont pas des défauts (clé absente, colonne interdite, valeur hors bornes) ; seuls les 5xx mettent le service en cause.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (handler, status) (rate(http_requests_total[5m]))", "legendFormat": "{{handler}} {{status}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Durée par route — 95ᵉ centile",
+      "description": "Les deux routes n'ont pas la même unité de travail ; les seuils d'alerte sont distincts (1 s et 30 s).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "{{handler}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Refus de périmètre, par colonne transmise",
+      "description": "Nommer la colonne est ce qui rend l'incident corrigeable côté source.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (colonne) (increase(decrochage_refus_perimetre_total[1h]))", "legendFormat": "{{colonne}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    }
+  ]
+}

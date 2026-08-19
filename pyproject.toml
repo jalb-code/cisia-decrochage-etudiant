@@ -9,20 +9,25 @@ version = "0.1.0"
 description = "Détection précoce du décrochage étudiant en L1 (cas d'usage certification IA)."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"  # dupliqué volontairement dans .python-version (lu par uv/pyenv)
+# Runtime STRICT du service d'inférence (§10-§11) : c'est l'empreinte de l'image API.
+# Tout ce qui ne sert qu'à *produire* le dossier d'étude (traçage, SHAP, réglage, tracé)
+# est écarté ici et rangé dans le groupe `analysis` ci-dessous, hors image.
 dependencies = [
-    "matplotlib>=3.11.1",
-    "numpy>=2.3,<2.4",  # borné : numba (dépendance de SHAP) ne supporte pas encore numpy 2.4+
+    "numpy>=2.3,<2.4",  # borné : numba (dépendance de SHAP, groupe analysis) plafonne à numpy 2.3
     "pandas>=3.0.3",
     "scikit-learn>=1.9.0",
-    "shap>=0.52.0",
+    "joblib>=1.4",  # sérialisation des pipelines (§10) — explicite, pas seulement transitif
+    "pydantic>=2.7",  # schémas d'entrée/sortie de l'API (contrat validé)
     "pydantic-settings>=2.3",  # configuration runtime surchargeable par l'environnement (config.py)
-    "xgboost>=3.4.1",  # famille boosting comparée en §8 ; pas nécessairement embarquée dans l'artefact §10
-    "optuna>=4.9",  # réglage des hyperparamètres en §9 (TPE + pruning + budget borné)
-    "codecarbon>=3.3",  # empreinte carbone du réglage en §9 (temps / énergie / CO₂)
+    "fastapi>=0.115",  # service d'inférence (§11)
+    "uvicorn[standard]>=0.34",  # serveur ASGI
+    "prometheus-fastapi-instrumentator>=7.0",  # métriques d'exploitation (§13)
 ]
 
-# Dépendances de DÉVELOPPEMENT (lint, format, tests, notebooks) : hors runtime.
+# Groupes NON installés dans l'image API. Local complet : `uv sync --group analysis` ;
+# image d'inférence : `uv sync --no-default-groups --no-dev` (runtime strict ci-dessus).
 [dependency-groups]
+# Développement : lint, format, tests. `httpx` alimente le client de test FastAPI.
 dev = [
     "ruff>=0.15.21",
     "pytest>=9.1.1",
@@ -30,7 +35,16 @@ dev = [
     "ipykernel>=7.3.0",
     "nbconvert>=7.17.1",
     "missingno>=0.5.2",
-    "ipywidgets>=8.1.9",
+    "ipywidgets>=8.1.9",  # widgets interactifs du notebook (barres de progression §9)
+    "httpx>=0.28",
+]
+# Analyse : tout ce qui sert le dossier d'étude (notebook, §8-§9, §12), jamais l'image.
+analysis = [
+    "matplotlib>=3.11.1",
+    "shap>=0.52.0",  # explicabilité globale §12 (l'API, elle, calcule les contributions analytiquement)
+    "xgboost>=3.4.1",  # famille boosting comparée en §8
+    "optuna>=4.9",  # réglage des hyperparamètres en §9 (TPE + pruning + budget borné)
+    "codecarbon>=3.3",  # empreinte carbone du réglage en §9
 ]
 
 # `src/` layout : indiquer explicitement le package à empaqueter.
@@ -66,14 +80,24 @@ allowed-confusables = ["ρ", "η", "σ", "×"]
 # Les fonctions de test se documentent par leur nom (`test_...`) et leurs assertions :
 # ne pas exiger de docstring de module ni de fonction dans `tests/`.
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D100", "D103"]
-# X / y : notation standard du couple (features, cible) en apprentissage - conservée.
+# X / y : notation standard du couple (features, cible) en apprentissage - conservée dans
+# tout test qui manipule un jeu d'entraînement.
+"tests/**" = ["D100", "D103", "N806"]
 "src/decrochage_l1/modeling/*.py" = ["N803", "N806"]
-"tests/test_modeling.py" = ["N806"]
 
 [tool.ruff.lint.isort]
 # Regroupe les imports du code interne dans un bloc distinct des paquets tiers.
 known-first-party = ["decrochage_l1"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Idiome FastAPI : `Depends`/`Body`/`Query`/`Header` en valeurs par défaut d'arguments
+# sont l'API prévue du framework, pas le piège B008 des appels mutables partagés.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Body",
+    "fastapi.Query",
+    "fastapi.Header",
+]
 
 [tool.ruff.format]
 quote-style = "double"

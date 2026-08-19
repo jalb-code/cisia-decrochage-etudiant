@@ -1,0 +1,22 @@
+# Collecte Prometheus du service d'inférence. Provisionné en code, monté en lecture seule.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    dispositif: decrochage-l1
+
+rule_files:
+  - regles.yml
+
+scrape_configs:
+  # Le service expose /metrics (instrumentation générique + métriques métier).
+  - job_name: service-inference
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+
+  # Prometheus se collecte lui-même : savoir si le collecteur va bien est la première
+  # question à se poser quand un indicateur disparaît.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
