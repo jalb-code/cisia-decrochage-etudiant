@@ -17,6 +17,8 @@ dependencies = [
     "shap>=0.52.0",
     "pydantic-settings>=2.3",  # configuration runtime surchargeable par l'environnement (config.py)
     "xgboost>=3.4.1",  # famille boosting comparée en §8 ; pas nécessairement embarquée dans l'artefact §10
+    "optuna>=4.9",  # réglage des hyperparamètres en §9 (TPE + pruning + budget borné)
+    "codecarbon>=3.3",  # empreinte carbone du réglage en §9 (temps / énergie / CO₂)
 ]
 
 # Dépendances de DÉVELOPPEMENT (lint, format, tests, notebooks) : hors runtime.
@@ -28,6 +30,7 @@ dev = [
     "ipykernel>=7.3.0",
     "nbconvert>=7.17.1",
     "missingno>=0.5.2",
+    "ipywidgets>=8.1.9",
 ]
 
 # `src/` layout : indiquer explicitement le package à empaqueter.

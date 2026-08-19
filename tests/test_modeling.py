@@ -12,7 +12,15 @@ from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.pipeline import Pipeline
 
 from decrochage_l1.data import preparation
-from decrochage_l1.modeling import ablation, evaluation, families, preprocessing, protocol
+from decrochage_l1.modeling import (
+    ablation,
+    evaluation,
+    families,
+    preprocessing,
+    protocol,
+    threshold,
+    tuning,
+)
 
 # --- Protocole : split scellé et validation croisée ---------------------------
 
@@ -303,3 +311,187 @@ def test_ablate_regression_rend_mae_rmse_r2_et_applique_le_postprocess():
         build_pipeline, X, y, {"bruit": ["bruit"]}, cv, postprocess=lambda p: p.clip(0, 0)
     )
     assert force_zero.loc["complet", "mae"] == pytest.approx(float(y.abs().mean()), rel=1e-6)
+
+
+# --- Réglage des hyperparamètres : recherche Optuna bornée, avec pruning ---------
+
+
+def test_optuna_search_respecte_le_budget_et_rend_les_meilleurs_parametres():
+    """La recherche tient le budget `n_trials`, renvoie un jeu de paramètres et l'étude."""
+    rng = np.random.default_rng(0)
+    n = 200
+    X = pd.DataFrame({"x": rng.normal(size=n)})
+    # cible linéairement séparable pour que le meilleur C soit discriminable
+    y = pd.Series((X["x"] + rng.normal(scale=0.3, size=n) > 0).astype(int))
+
+    def build_pipeline(params):
+        preproc = preprocessing.make_preprocessor(
+            numeric=["x"],
+            ordinal=[],
+            onehot=[],
+            ordinal_categories=[],
+            onehot_categories=[],
+            scale=True,
+        )
+        pipe = families.build_classifiers(preproc_linear=preproc, preproc_tree=preproc, seed=0)[
+            "logreg"
+        ]
+        return pipe.set_params(model__C=params["C"])
+
+    def suggest(trial):
+        return {"C": trial.suggest_float("C", 1e-2, 1e2, log=True)}
+
+    cv = protocol.make_cv(n_splits=3, seed=0)
+    best, study = tuning.optuna_search(
+        build_pipeline, suggest, X, y, cv, scoring="roc_auc", n_trials=8, seed=0
+    )
+    assert "C" in best
+    assert len(study.trials) == 8
+    assert 0.0 <= tuning.pruned_ratio(study) <= 1.0
+
+
+def test_optuna_search_est_reproductible_a_seed_fixe():
+    """Même seed, même meilleur paramètre - la recherche est rejouable."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame({"x": rng.normal(size=150)})
+    y = pd.Series((X["x"] > 0).astype(int))
+
+    def build_pipeline(params):
+        preproc = preprocessing.make_preprocessor(
+            numeric=["x"],
+            ordinal=[],
+            onehot=[],
+            ordinal_categories=[],
+            onehot_categories=[],
+            scale=True,
+        )
+        pipe = families.build_classifiers(preproc_linear=preproc, preproc_tree=preproc, seed=0)[
+            "logreg"
+        ]
+        return pipe.set_params(model__C=params["C"])
+
+    def suggest(trial):
+        return {"C": trial.suggest_float("C", 1e-2, 1e2, log=True)}
+
+    cv = protocol.make_cv(n_splits=3, seed=0)
+    a, _ = tuning.optuna_search(
+        build_pipeline, suggest, X, y, cv, scoring="roc_auc", n_trials=6, seed=0
+    )
+    b, _ = tuning.optuna_search(
+        build_pipeline, suggest, X, y, cv, scoring="roc_auc", n_trials=6, seed=0
+    )
+    assert a["C"] == pytest.approx(b["C"])
+
+
+# --- Cache de réglage : exécution rapide sans relancer la recherche --------------
+
+
+def test_cached_search_calcule_puis_persiste_a_la_premiere_passe(tmp_path):
+    """Cache absent : on calcule, on écrit le fichier, on renvoie le résultat."""
+    chemin = tmp_path / "cache.json"
+    appels = []
+
+    def compute():
+        appels.append(1)
+        return {"C": 0.1}
+
+    resultat = tuning.cached_search(chemin, "logreg", compute, use_cache=False)
+    assert resultat == {"C": 0.1}
+    assert len(appels) == 1
+    assert chemin.exists()
+    assert tuning.load_cache(chemin)["logreg"] == {"C": 0.1}
+
+
+def test_cached_search_recharge_sans_recalculer_quand_le_cache_existe(tmp_path):
+    """Cache présent + use_cache : on renvoie la valeur stockée sans rappeler compute."""
+    chemin = tmp_path / "cache.json"
+    tuning.cached_search(chemin, "logreg", lambda: {"C": 0.1}, use_cache=False)
+
+    def compute_interdit():
+        raise AssertionError("compute ne doit pas être rappelé quand le cache sert")
+
+    resultat = tuning.cached_search(chemin, "logreg", compute_interdit, use_cache=True)
+    assert resultat == {"C": 0.1}
+
+
+def test_cached_search_recalcule_si_la_cle_manque_meme_en_mode_cache(tmp_path):
+    """use_cache mais clé absente : repli sûr, on calcule et on complète le cache."""
+    chemin = tmp_path / "cache.json"
+    tuning.cached_search(chemin, "logreg", lambda: {"C": 0.1}, use_cache=False)
+    resultat = tuning.cached_search(chemin, "foret", lambda: {"n": 300}, use_cache=True)
+    assert resultat == {"n": 300}
+    assert set(tuning.load_cache(chemin)) == {"logreg", "foret"}
+
+
+# --- Seuil de décision : table de scénarios et politiques de choix ---------------
+
+
+def _scores_ordonnes():
+    """40 lignes : probabilités croissantes, positifs concentrés dans le haut du classement."""
+    proba = np.linspace(0.01, 0.99, 40)
+    y = pd.Series((proba >= 0.6).astype(int))  # 16 positifs, les plus hautes probas
+    return y, proba
+
+
+def test_threshold_table_compte_alertes_rappel_et_precision():
+    """La table donne volume d'alertes, part de promo et arbitrage rappel/précision cohérents."""
+    y, proba = _scores_ordonnes()
+    table = threshold.threshold_table(y, proba, thresholds=np.array([0.3, 0.6, 0.9]))
+    assert list(table.columns) == [
+        "rappel",
+        "precision",
+        "f2",
+        "n_alertes",
+        "tp",
+        "n_FN",
+        "pct_promo",
+    ]
+    # seuil 0.6 : signale exactement les positifs → rappel, précision et F2 parfaits
+    assert table.loc[0.6, "rappel"] == pytest.approx(1.0)
+    assert table.loc[0.6, "precision"] == pytest.approx(1.0)
+    assert table.loc[0.6, "f2"] == pytest.approx(1.0)
+    assert table.loc[0.6, "pct_promo"] == pytest.approx(table.loc[0.6, "n_alertes"] / len(y))
+    # seuil plus bas → plus d'alertes, rappel maintenu, précision moindre
+    assert table.loc[0.3, "n_alertes"] > table.loc[0.6, "n_alertes"]
+    assert table.loc[0.3, "precision"] < table.loc[0.6, "precision"]
+
+
+def test_pick_threshold_plancher_de_rappel():
+    """Le seuil retenu garantit le rappel cible sur les probabilités fournies."""
+    y, proba = _scores_ordonnes()
+    seuil = threshold.pick_threshold(y, proba, recall_target=0.80)
+    pred = proba >= seuil
+    rappel = int(np.sum(pred & (np.asarray(y) == 1))) / int(np.asarray(y).sum())
+    assert rappel >= 0.80
+
+
+def test_pick_threshold_capacite_en_nombre():
+    """Une capacité de N signale exactement N étudiants."""
+    y, proba = _scores_ordonnes()
+    seuil = threshold.pick_threshold(y, proba, capacity_n=10)
+    assert int(np.sum(proba >= seuil)) == 10
+
+
+def test_pick_threshold_exige_un_seul_critere():
+    y, proba = _scores_ordonnes()
+    with pytest.raises(ValueError):
+        threshold.pick_threshold(y, proba)
+    with pytest.raises(ValueError):
+        threshold.pick_threshold(y, proba, recall_target=0.8, capacity_n=5)
+
+
+def test_plot_confusion_rend_des_comptes_coherents():
+    """La matrice affiche 4 cases dont la somme = effectif, et aucun FN à seuil bas."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    y, proba = _scores_ordonnes()
+    ax = evaluation.plot_confusion(y, proba, threshold=0.05)
+    # chaque annotation vaut "TYPE\ncompte" (ex. "FN\n0") ; on relit le compte
+    cases = [int(t.get_text().split("\n")[-1]) for t in ax.texts]
+    assert sum(cases) == len(y)  # chaque étudiant tombe dans une case et une seule
+    assert {t.get_text().split("\n")[0] for t in ax.texts} == {"TN", "FP", "FN", "TP"}
+    # seuil très bas → tout le monde signalé → aucun décrocheur manqué (FN = 0)
+    pred = np.asarray(proba) >= 0.05
+    fn = int(np.sum(~pred & (np.asarray(y) == 1)))
+    assert fn == 0

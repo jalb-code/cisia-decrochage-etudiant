@@ -18,6 +18,7 @@ from sklearn.calibration import calibration_curve
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
+    confusion_matrix,
     mean_absolute_error,
     mean_squared_error,
     precision_recall_curve,
@@ -195,4 +196,52 @@ def plot_calibration(
         title="Courbes de calibration (OOF)",
     )
     ax.legend(loc="upper left")
+    return ax
+
+
+def plot_confusion(
+    y: pd.Series,
+    proba: np.ndarray,
+    threshold: float,
+    *,
+    ax: plt.Axes | None = None,
+    title: str | None = None,
+) -> plt.Axes:
+    """Matrice de confusion pour un seuil donné, appliqué aux probabilités fournies.
+
+    L'étudiant est signalé quand sa probabilité atteint `threshold`. Chaque case porte son
+    **type** (`TN` / `FP` / `FN` / `TP`) et son décompte ; les axes portent la classe réelle
+    (lignes) et prédite (colonnes). Le *sens métier* des cases (FN = décrocheur manqué…) et la
+    nature des probabilités (out-of-fold, test scellé) se disent au notebook.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(3.6, 3.2))
+    pred = (np.asarray(proba) >= threshold).astype(int)
+    # matrice[i, j] : i = classe réelle, j = classe prédite (labels 0 = reste, 1 = abandon).
+    matrice = confusion_matrix(np.asarray(y), pred, labels=[0, 1])
+    types = np.array([["TN", "FP"], ["FN", "TP"]])  # sens de chaque case, aligné sur matrice
+    ax.imshow(matrice, cmap="Blues")
+    seuil_texte = matrice.max() / 2  # texte blanc sur case foncée, noir sur case claire
+    for i in range(2):
+        for j in range(2):
+            couleur = "white" if matrice[i, j] > seuil_texte else "black"
+            ax.text(
+                j,
+                i,
+                f"{types[i, j]}\n{matrice[i, j]:d}",
+                ha="center",
+                va="center",
+                color=couleur,
+                fontweight="bold",
+            )
+    ax.set(
+        xticks=[0, 1],
+        yticks=[0, 1],
+        xticklabels=["reste", "abandon"],
+        yticklabels=["reste", "abandon"],
+        xlabel="Prédiction",
+        ylabel="Réel",
+        title=title or f"Seuil {threshold:.2f}",
+    )
+    ax.grid(False)  # sinon la grille du style traverse les cases (ticks au centre des cellules)
     return ax
