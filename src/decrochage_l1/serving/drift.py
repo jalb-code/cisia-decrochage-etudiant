@@ -1,6 +1,6 @@
 """Mesure de la dérive des entrées, **par campagne** — PSI et Kolmogorov-Smirnov.
 
-Le régime réel du cas d'usage est d'environ deux extractions par an : la dérive se
+Le régime réel du cas d'usage est d'une extraction par an : la dérive se
 mesure donc sur le **lot qu'on vient de scorer**, comparé à une distribution de
 référence figée à l'entraînement, et non par un relevé continu qui donnerait l'illusion
 d'une surveillance temps réel. C'est une propriété de la campagne, pas une ressource.

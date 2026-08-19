@@ -80,6 +80,15 @@ class Settings(BaseSettings):
         """
         return self.root_dir / "models"
 
+    @property
+    def resources_dir(self) -> Path:
+        """Ressources versionnées du notebook (captures d'exploitation) — lues pour les annexes §15.
+
+        Voisines du notebook (`notebooks/ressources/`), déposées à la main et suivies par git :
+        ce sont des illustrations, pas des artefacts produits par le code.
+        """
+        return self.root_dir / "notebooks" / "ressources"
+
 
 # Instance partagée, importable partout : `from decrochage_l1.config import settings`.
 settings = Settings()

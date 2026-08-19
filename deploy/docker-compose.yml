@@ -1,6 +1,6 @@
-# Pile d'exploitation du dispositif : service d'inférence, collecteur, tableau de bord.
+# Pile d'exploitation du dispositif : service d'inférence, collecteur Prometheus, tableau de
+# bord Grafana, et client de démonstration (hors périmètre livré).
 # `docker compose -f deploy/docker-compose.yml up -d` depuis la racine du dépôt.
-# Le client de démonstration (hors périmètre livré) est ajouté séparément (client/).
 name: decrochage-l1
 
 services:
