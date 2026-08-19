@@ -78,12 +78,15 @@ groups:
 
   - name: politique
     rules:
+      # Tolérance ±0,01 : la jauge porte la valeur sérialisée (~0,417), la politique défendue au
+      # notebook s'énonce 0,42 (rappel ≥ 80 %, §9.4). Une surcharge d'exploitation (D38) déplace
+      # le seuil au-delà de la tolérance et fait remonter l'alerte - l'override reste observable.
       - alert: SeuilInattendu
-        expr: decrochage_seuil_defaut != 0.16
+        expr: abs(decrochage_seuil_defaut - 0.42) > 0.01
         for: 5m
         labels:
           gravite: avertissement
           destinataire: direction de la réussite étudiante
         annotations:
-          resume: "Le seuil de décision appliqué diffère de la politique attendue (0,16)."
+          resume: "Le seuil de décision configuré s'écarte de la politique attendue (0,42)."
           action: "Confirmer le changement de seuil ; s'il est voulu, mettre cette règle à jour avec la configuration."

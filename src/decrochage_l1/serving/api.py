@@ -104,8 +104,12 @@ def create_app(
     app.state.settings = service
     app.state.entrepot = entrepot
 
-    # État initial des métriques métier : disponibilité et seuil appliqué.
+    # État initial des métriques métier : disponibilité, séries de refus à zéro, et le seuil de
+    # décision configuré. La jauge de seuil reflète la politique en place (fiche ou surcharge),
+    # indépendamment du régime : la surveillance d'exploitation la lit même sans indicateur exposé
+    # - c'est aux réponses, vues par l'utilisateur, de taire le seuil hors régime, pas au pilotage.
     metrics.set_model_loaded(entrepot.ready)
+    metrics.init_refus_series(schemas.INPUT_FIELDS)
     if entrepot.ready:
         metrics.set_threshold(_resolve_threshold(None, service, entrepot.bundle.contract))
 
@@ -139,15 +143,26 @@ def create_app(
         request: Request,
         payload: schemas.PredictCohorteForm,
         seuil: float | None = Query(default=None),
+        capacite: int | None = Query(default=None, ge=1),
         derive: bool = Query(default=False),
         _: None = Depends(require_api_key),
         bundle: Bundle = Depends(require_ready),
     ) -> schemas.PredictCohorteReponse:
         service_local: ServiceSettings = request.app.state.settings
-        threshold = _resolve_threshold(seuil, service_local, bundle.contract)
-        provenance = _threshold_provenance(seuil, service_local)
+        expose = service_local.exposer_indicateur
 
-        # Validation ligne à ligne : une ligne invalide est refusée seule, motif à l'appui.
+        # Seuil et capacité ne gouvernent que l'indicateur : hors régime « avec indicateur », ils
+        # ne produisent aucune sortie -> refus explicite plutôt qu'effet silencieux. Ils fixent la
+        # même chose (le point de coupe) de deux façons, donc exclusifs.
+        if not expose and (seuil is not None or capacite is not None):
+            raise HTTPException(
+                status_code=422, detail="seuil et capacite requièrent l'exposition de l'indicateur"
+            )
+        if seuil is not None and capacite is not None:
+            raise HTTPException(status_code=422, detail="seuil et capacite sont exclusifs")
+
+        # Validation ligne à ligne : une ligne invalide est refusée seule, motif à l'appui, et
+        # chaque colonne mise en cause incrémente le compteur de refus de périmètre.
         forms: list[schemas.PredictEtudiantForm] = []
         positions: list[int] = []
         refuses: list[schemas.DossierRefuse] = []
@@ -156,26 +171,39 @@ def create_app(
                 forms.append(schemas.PredictEtudiantForm.model_validate(brut))
                 positions.append(i)
             except ValidationError as erreur:
+                erreurs: list[dict] = []
+                for e in erreur.errors():
+                    colonne = ".".join(str(x) for x in e["loc"]) or "_modele"
+                    metrics.increment_refus(colonne)
+                    erreurs.append({"champ": colonne, "message": e["msg"]})
                 refuses.append(
                     schemas.DossierRefuse(
-                        index=i,
-                        reference_dossier=brut.get("reference_dossier"),
-                        erreurs=[
-                            {"champ": ".".join(str(x) for x in e["loc"]), "message": e["msg"]}
-                            for e in erreur.errors()
-                        ],
+                        index=i, reference_dossier=brut.get("reference_dossier"), erreurs=erreurs
                     )
                 )
 
-        resultats: list[schemas.PredictEtudiantReponse] = []
         frame = _frame_entree(forms) if forms else pd.DataFrame()
+
+        # Politique de décision, résolue seulement en régime indicateur : par capacité (coupe
+        # relative à la cohorte) ou par seuil (appel > configuration > fiche).
+        threshold: float | None = None
+        provenance: str | None = None
+        if expose:
+            if capacite is not None:
+                threshold = scoring.capacity_threshold(bundle, frame, capacite)
+                provenance = "capacite"
+            else:
+                threshold = _resolve_threshold(seuil, service_local, bundle.contract)
+                provenance = _threshold_provenance(seuil, service_local)
+
+        resultats: list[schemas.PredictEtudiantReponse] = []
         if forms:
             scores = scoring.score(
                 bundle,
                 frame,
                 [f.reference_dossier for f in forms],
                 threshold=threshold,
-                expose_indicator=service_local.exposer_indicateur,
+                expose_indicator=expose,
             )
             resultats = [
                 schemas.etudiant_reponse(
@@ -189,7 +217,7 @@ def create_app(
             ]
 
         part_signalee = None
-        if service_local.exposer_indicateur and resultats:
+        if expose and resultats:
             part_signalee = sum(1 for r in resultats if r.signaled) / len(resultats)
 
         reponse = schemas.PredictCohorteReponse(
@@ -226,18 +254,27 @@ def create_app(
         bundle: Bundle = Depends(require_ready),
     ) -> schemas.PredictEtudiantReponse:
         service_local: ServiceSettings = request.app.state.settings
-        threshold = _resolve_threshold(seuil, service_local, bundle.contract)
+        expose = service_local.exposer_indicateur
+        if not expose and seuil is not None:
+            raise HTTPException(
+                status_code=422, detail="seuil requiert l'exposition de l'indicateur"
+            )
+        threshold: float | None = None
+        provenance: str | None = None
+        if expose:
+            threshold = _resolve_threshold(seuil, service_local, bundle.contract)
+            provenance = _threshold_provenance(seuil, service_local)
         score = scoring.score(
             bundle,
             _frame_entree([form]),
             [form.reference_dossier],
             threshold=threshold,
-            expose_indicator=service_local.exposer_indicateur,
+            expose_indicator=expose,
         )[0]
         return schemas.etudiant_reponse(
             score,
             seuil=threshold,
-            provenance=_threshold_provenance(seuil, service_local),
+            provenance=provenance,
             version=bundle.contract.facts.version,
         )
 
@@ -252,10 +289,12 @@ def create_app(
         bundle: Bundle = Depends(require_ready),
     ) -> dict:
         service_local: ServiceSettings = request.app.state.settings
+        expose = service_local.exposer_indicateur
         return {
-            "seuil": _resolve_threshold(None, service_local, bundle.contract),
-            "provenance": _threshold_provenance(None, service_local),
-            "exposer_indicateur": service_local.exposer_indicateur,
+            # Hors régime indicateur, aucun seuil n'est en vigueur : politique « proba seule ».
+            "seuil": _resolve_threshold(None, service_local, bundle.contract) if expose else None,
+            "provenance": _threshold_provenance(None, service_local) if expose else None,
+            "exposer_indicateur": expose,
         }
 
     @app.get("/health")
@@ -271,10 +310,13 @@ def create_app(
             )
         bundle = entrepot_local.bundle
         service_local: ServiceSettings = request.app.state.settings
+        expose = service_local.exposer_indicateur
         return {
             "ready": True,
             "version": bundle.contract.facts.version,
-            "seuil": _resolve_threshold(None, service_local, bundle.contract),
+            "exposer_indicateur": expose,
+            # Le seuil n'accompagne la sonde que lorsqu'il gouverne l'indicateur.
+            "seuil": _resolve_threshold(None, service_local, bundle.contract) if expose else None,
             "n_variables": len(bundle.classifier.feature_names_in_),
         }
 

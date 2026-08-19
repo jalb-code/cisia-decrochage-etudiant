@@ -39,12 +39,30 @@ def _model_features(bundle: Bundle) -> list[str]:
     return list(bundle.classifier.feature_names_in_)
 
 
+def capacity_threshold(bundle: Bundle, accepted: pd.DataFrame, capacite: int) -> float:
+    """Seuil qui signale au plus `capacite` dossiers : la capacité-ème plus forte probabilité.
+
+    Le seuil est **relatif à la cohorte** : on trie les probabilités décroissantes et on coupe
+    au rang `capacite`. Cohorte plus petite que la capacité renvoie un seuil 0 (tout le monde
+    tient), cohorte vide un seuil 1 (rien à signaler). Des probabilités ex æquo au rang de coupe
+    peuvent signaler un peu plus que `capacite` : on préfère inclure que départager au hasard.
+    """
+    if len(accepted) == 0:
+        return 1.0
+    features = accepted[_model_features(bundle)]
+    probabilities = bundle.classifier.predict_proba(features)[:, 1]
+    if capacite >= len(probabilities):
+        return 0.0
+    ranked = np.sort(probabilities)[::-1]
+    return float(ranked[capacite - 1])
+
+
 def score(
     bundle: Bundle,
     accepted: pd.DataFrame,
     references: list[str | None],
     *,
-    threshold: float,
+    threshold: float | None,
     expose_indicator: bool,
 ) -> list[DossierScore]:
     """Score un lot conformé : probabilité, note bornée, indicateur optionnel, contributions.

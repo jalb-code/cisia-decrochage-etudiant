@@ -133,8 +133,8 @@ class PredictEtudiantReponse(BaseModel):
     proba_abandon: float = Field(..., ge=0, le=1)
     moyenne_finale: float = Field(..., ge=0, le=20)
     signaled: bool | None  # None quand l'indicateur n'est pas exposé (probabilité seule)
-    seuil_applique: float
-    provenance_seuil: str
+    seuil_applique: float | None  # None hors régime indicateur : le seuil ne gouverne rien
+    provenance_seuil: str | None
     version_modele: str
     contributions_theme: list[ContributionTheme]
     contributions_variable: list[ContributionVariable]  # détail dépliable sous les thèmes
@@ -161,8 +161,8 @@ class SyntheseCohorte(BaseModel):
 class PredictCohorteReponse(BaseModel):
     """Réponse d'une campagne : résultats dans l'ordre reçu, refus, synthèse, dérive optionnelle."""
 
-    seuil_applique: float
-    provenance_seuil: str
+    seuil_applique: float | None  # None hors régime indicateur : le seuil ne gouverne rien
+    provenance_seuil: str | None
     resultats: list[PredictEtudiantReponse]
     refuses: list[DossierRefuse]
     synthese: SyntheseCohorte
@@ -192,7 +192,12 @@ def _variables(contributions: Contributions, top: int | None) -> list[Contributi
 
 
 def etudiant_reponse(
-    score: DossierScore, *, seuil: float, provenance: str, version: str, top: int | None = None
+    score: DossierScore,
+    *,
+    seuil: float | None,
+    provenance: str | None,
+    version: str,
+    top: int | None = None,
 ) -> PredictEtudiantReponse:
     """Assemble la réponse d'un dossier ; `top` borne le détail par variable (vue campagne)."""
     return PredictEtudiantReponse(

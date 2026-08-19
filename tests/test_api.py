@@ -144,3 +144,72 @@ def test_seuil_en_vigueur_lu_dans_la_fiche(client):
     assert corps["seuil"] == 0.16
     assert corps["provenance"] == "fiche"
     assert corps["exposer_indicateur"] is True
+
+
+# --- Régime « probabilité seule » : sans indicateur exposé, aucun seuil ne s'applique ---
+
+
+def test_sans_indicateur_ni_seuil_ni_marquage(stub):
+    client = _client(stub, exposer_indicateur=False)
+    corps = client.post("/v1/predict-etudiant", json=stub.dossier(), headers=HEAD).json()
+    assert corps["signaled"] is None
+    assert corps["seuil_applique"] is None
+    assert corps["provenance_seuil"] is None
+
+
+def test_seuil_refuse_hors_regime_indicateur(stub):
+    client = _client(stub, exposer_indicateur=False)
+    assert (
+        client.post("/v1/predict-etudiant?seuil=0.3", json=stub.dossier(), headers=HEAD).status_code
+        == 422
+    )
+    lot = {"dossiers": [stub.dossier()]}
+    assert client.post("/v1/predict-cohorte?seuil=0.3", json=lot, headers=HEAD).status_code == 422
+    assert client.post("/v1/predict-cohorte?capacite=1", json=lot, headers=HEAD).status_code == 422
+
+
+def test_seuil_en_vigueur_absent_hors_regime(stub):
+    client = _client(stub, exposer_indicateur=False)
+    corps = client.get("/v1/seuil", headers=HEAD).json()
+    assert corps["exposer_indicateur"] is False
+    assert corps["seuil"] is None
+    assert corps["provenance"] is None
+
+
+# --- Mode capacité : signaler au plus N dossiers, coupe relative à la cohorte ---
+
+
+def test_capacite_signale_au_plus_n_dossiers(client, stub):
+    # Taux de présence échelonné -> probabilités distinctes, la coupe en signale exactement N.
+    lot = {
+        "dossiers": [
+            stub.dossier(reference_dossier=f"r{i}", taux_presence_pct=35.0 + 2.0 * i)
+            for i in range(30)
+        ]
+    }
+    corps = client.post("/v1/predict-cohorte?capacite=5", json=lot, headers=HEAD).json()
+    signales = [r for r in corps["resultats"] if r["signaled"]]
+    assert corps["provenance_seuil"] == "capacite"
+    assert 4 <= len(signales) <= 6  # exactement 5, tolérance d'un ex æquo au rang de coupe
+    assert corps["resultats"][0]["seuil_applique"] == corps["seuil_applique"]
+
+
+def test_capacite_et_seuil_sont_exclusifs(client, stub):
+    lot = {"dossiers": [stub.dossier()]}
+    reponse = client.post("/v1/predict-cohorte?capacite=1&seuil=0.3", json=lot, headers=HEAD)
+    assert reponse.status_code == 422
+
+
+def test_refus_de_perimetre_compte_par_colonne(client, stub):
+    from prometheus_client import REGISTRY
+
+    avant = REGISTRY.get_sample_value(
+        "decrochage_refus_perimetre_total", {"colonne": "taux_presence_pct"}
+    )
+    lot = {"dossiers": [stub.dossier(taux_presence_pct=150.0), stub.dossier()]}
+    corps = client.post("/v1/predict-cohorte", json=lot, headers=HEAD).json()
+    assert corps["synthese"]["dossiers_refuses"] == 1
+    apres = REGISTRY.get_sample_value(
+        "decrochage_refus_perimetre_total", {"colonne": "taux_presence_pct"}
+    )
+    assert apres == (avant or 0.0) + 1.0

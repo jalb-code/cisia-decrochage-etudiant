@@ -10,6 +10,7 @@ const State = {
   theme: localStorage.getItem("dl1.theme") || "light",
   fiche: null,
   seuil: null,
+  exposer: false, // le service expose-t-il l'indicateur « signalé » (et donc un seuil) ?
 };
 
 /* Formulaire Dossier : STATIQUE (construit ici, pas depuis le service). À synchroniser avec
@@ -157,7 +158,8 @@ async function refreshStatus() {
     if (ready.ready) {
       pill.classList.add("ok");
       label.textContent = "API prête";
-      State.seuil = ready.seuil;
+      State.exposer = !!ready.exposer_indicateur;
+      State.seuil = State.exposer ? ready.seuil : null;
     } else {
       pill.classList.add("ko");
       label.textContent = "modèle indisponible";
@@ -165,9 +167,15 @@ async function refreshStatus() {
   } catch {
     pill.classList.add("ko");
     label.textContent = "API injoignable";
+    State.exposer = false;
     State.seuil = null;
   }
-  $("#seuil-label").textContent = State.seuil == null ? "seuil —" : `seuil ${fmtNum(State.seuil, 3)}`;
+  // Hors régime indicateur, le seuil ne gouverne rien : on ne l'affiche pas.
+  $("#seuil-label").textContent = !State.exposer
+    ? ""
+    : State.seuil == null
+      ? "seuil —"
+      : `seuil ${fmtNum(State.seuil, 3)}`;
 }
 
 async function loadFiche() {
@@ -442,7 +450,7 @@ function openDossierPanel(r, ctx) {
       <div><div class="hint">probabilité d'abandon</div><div class="big-proba" style="font-size:32px">${fmtPct(r.probability)}</div></div>
       <div><div class="hint">note /20</div><div class="big-proba" style="font-size:26px">${fmtNum(r.moyenne_finale, 1)}</div></div>
     </div>
-    <div style="margin:12px 0">${sigBadge(r, true)} <span class="hint" style="display:inline-block;margin-left:6px">seuil ${fmtNum(ctx.seuil, 3)} (${ctx.provenance})</span></div>
+    ${ctx.seuil == null ? "" : `<div style="margin:12px 0">${sigBadge(r, true)} <span class="hint" style="display:inline-block;margin-left:6px">seuil ${fmtNum(ctx.seuil, 3)} (${ctx.provenance})</span></div>`}
     <h3 style="margin-top:16px">Ce qui pèse sur l'estimation — par thème</h3>
     ${contribBars(themeItems(r.contributions_theme))}
     <h3 style="margin-top:16px">Détail — par variable</h3>
@@ -866,7 +874,9 @@ function screenParametres() {
     localStorage.setItem("dl1.prometheus", State.prometheus);
     try {
       const seuil = await api("/v1/seuil");
-      $("#p-status").textContent = `Clé acceptée. Seuil en vigueur : ${fmtNum(seuil.seuil, 3)} (${seuil.provenance}).`;
+      $("#p-status").textContent = seuil.exposer_indicateur
+        ? `Clé acceptée. Seuil en vigueur : ${fmtNum(seuil.seuil, 3)} (${seuil.provenance}).`
+        : "Clé acceptée. Indicateur non exposé : probabilité seule, sans seuil.";
       await loadFiche();
       await refreshStatus();
     } catch (e) {
