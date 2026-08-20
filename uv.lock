@@ -418,6 +418,9 @@ analysis = [
     { name = "shap" },
     { name = "xgboost" },
 ]
+cli = [
+    { name = "typer" },
+]
 dev = [
     { name = "httpx" },
     { name = "ipykernel" },
@@ -450,6 +453,7 @@ analysis = [
     { name = "shap", specifier = ">=0.52.0" },
     { name = "xgboost", specifier = ">=3.4.1" },
 ]
+cli = [{ name = "typer", specifier = ">=0.12" }]
 dev = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "ipykernel", specifier = ">=7.3.0" },

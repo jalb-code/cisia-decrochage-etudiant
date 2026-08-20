@@ -1,0 +1,21 @@
+reference_dossier;age;taux_presence_pct;heures_lms_total;retards_rendus;nb_devoirs_total;nb_devoirs_rendus;messages_forum;nb_ue_total;motivation;satisfaction;sentiment_appartenance;mention_bac;filiere;bac_type
+TEST-001;17;67,2 %;83,2;5;13;11;4;6;4;3;2;Assez bien;Informatique;Professionnel
+TEST-002;21;99,0 %;24,4;2;10;10;5;7;5;;4;Assez bien;Biologie;Général
+TEST-003;24;89,5 %;3,3;5;8;5;0;5;3;4;1;Assez bien;Mathématiques;Général
+TEST-004;22;80,5 %;41,2;3;10;6;1;5;2;3;1;Bien;Droit;Général
+TEST-005;21;135 %;54,5;4;9;7;4;6;2;3;3;Assez bien;Biologie;Professionnel
+TEST-006;23;97,1 %;42,1;3;8;7;8;6;5;3;4;Passable;Informatique;Général
+TEST-007;20;65,3 %;15,6;7;12;8;0;7;2;1;1;;Droit;Technologique
+TEST-008;20;86,7 %;31,2;4;8;6;5;6;;4;4;;Mathématiques;Professionnel
+TEST-009;22;59,4 %;73,0;3;8;7;5;7;3;5;4;Bien;Lettres;Général
+TEST-010;19;61,1 %;0,3;5;10;5;0;7;2;;1;Passable;Droit;Général
+TEST-011;18;60,7 %;27,6;6;8;6;1;6;2;3;4;Passable;Biologie;Technologique
+TEST-012;20;72,3 %;41,3;6;12;8;2;7;4;3;3;Passable;Sport;Professionnel
+TEST-013;20;69,3 %;21,4;8;12;9;1;5;3;1;5;Assez bien;Droit;Professionnel
+TEST-014;19;76,4 %;51,5;4;9;6;1;6;5;2;;Passable;STAPS;Professionnel
+TEST-015;19;88,9 %;68,8;2;8;8;6;7;4;3;3;Assez bien;Gestion;Général
+TEST-016;17;78,8 %;35,0;5;8;8;9;6;;5;4;Bien;Gestion;Général
+TEST-017;23;86,0 %;0,3;5;9;6;4;7;2;3;3;Assez bien;Lettres;Général
+TEST-018;21;85,8 %;84,4;1;12;12;3;6;5;5;4;Passable;Informatique;Professionnel
+TEST-019;19;78,6 %;11,1;7;10;7;0;7;3;;;Bien;Mathématiques;Général
+TEST-020;19;83,3 %;44,4;6;13;10;2;5;2;4;1;Passable;Droit;Général

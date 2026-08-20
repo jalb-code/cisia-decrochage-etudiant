@@ -1,0 +1,115 @@
+{
+  "version": "1.0.0",
+  "seed": 42,
+  "test_size": 0.2,
+  "n_splits": 5,
+  "target": "abandon",
+  "target_secondary": "moyenne_finale",
+  "source_file": "dataset decrochage_etudiants_complet_V5.csv",
+  "gold_exclusions": [
+    "student_id",
+    "id_dossier",
+    "moyenne_partiels_s1",
+    "nb_ue_validees_s1",
+    "commentaire_tuteur",
+    "annee_universitaire"
+  ],
+  "protected": ["sexe", "boursier"],
+  "matrix_excluded": ["date_inscription"],
+  "numeric_columns": [
+    "age",
+    "taux_presence_pct",
+    "heures_lms_total",
+    "retards_rendus",
+    "nb_devoirs_total",
+    "nb_devoirs_rendus",
+    "messages_forum",
+    "nb_ue_total",
+    "motivation",
+    "satisfaction",
+    "sentiment_appartenance",
+    "heures_travail_remunere_sem",
+    "distance_domicile_km",
+    "connexions_lms_30j",
+    "ressources_consultees",
+    "moyenne_partiels_s1",
+    "nb_ue_validees_s1",
+    "moyenne_finale",
+    "abandon"
+  ],
+  "roles": {
+    "ordinal": ["mention_bac"],
+    "nominal": [
+      "filiere",
+      "bac_type",
+      "etablissement_origine",
+      "groupe_td",
+      "couleur_carte_etudiante",
+      "jour_inscription"
+    ]
+  },
+  "ablation_removed": [
+    "groupe_td",
+    "couleur_carte_etudiante",
+    "jour_inscription",
+    "etablissement_origine",
+    "heures_travail_remunere_sem",
+    "distance_domicile_km",
+    "connexions_lms_30j",
+    "ressources_consultees"
+  ],
+  "family_classifier": "logreg",
+  "family_regressor": "gradient_boosting",
+  "hyperparams_classifier": { "C": 0.1 },
+  "threshold_policy": { "recall_target": 0.8 },
+  "drift_defaults": { "surveillance": 0.1, "alerte": 0.25, "effectif_min": 200 },
+  "themes": {
+    "taux_presence_pct": "assiduité",
+    "nb_devoirs_total": "assiduité",
+    "nb_devoirs_rendus": "assiduité",
+    "retards_rendus": "assiduité",
+    "taux_rendu": "assiduité",
+    "ratio_retards": "assiduité",
+    "heures_lms_total": "engagement",
+    "messages_forum": "engagement",
+    "motivation": "ressenti",
+    "satisfaction": "ressenti",
+    "sentiment_appartenance": "ressenti",
+    "age": "parcours",
+    "nb_ue_total": "parcours",
+    "mention_bac": "parcours",
+    "filiere": "parcours",
+    "bac_type": "parcours"
+  },
+  "model_card": {
+    "model_name": "Détection du décrochage en L1 (mi-S1)",
+    "owners": "Établissement",
+    "description": "Modèle d'aide à la décision qui estime, à mi-parcours du premier semestre, la probabilité qu'un étudiant de L1 abandonne, afin de déclencher un accompagnement humain.",
+    "details": {
+      "Développé par": "Julien ALBURQUERQUE",
+      "Type": "deux modèles - classification (régression logistique calibrée) pour la probabilité d'abandon ; régression (gradient boosting) pour une estimation de la note finale, secondaire, qui hiérarchise l'intensité de l'accompagnement",
+      "Cibles": "abandon (probabilité, principale) · moyenne_finale (/20, secondaire)",
+      "Langue des données": "français",
+      "Licence": "usage uniquement dans le cadre de la certification CISIA"
+    },
+    "direct_use": "Prioriser l'accompagnement des étudiants de L1 à mi-S1. La sortie principale est une probabilité, jamais une classe ni une décision.",
+    "users": "Cellule pédagogique et tuteurs de l'établissement.",
+    "out_of_scope": "Aucune décision administrative automatisée (orientation, sanction, sélection). Aide à la décision : la décision d'accompagnement reste humaine (RGPD, art. 22). Ne jamais exposer la seule classe binaire à l'utilisateur.",
+    "limitations": [
+      "Cohorte d'un seul établissement et d'une seule année : généralisation à valider ailleurs.",
+      "Seuil non recalé sur le test scellé : le rappel y passe un peu sous le plancher visé.",
+      "Petits sous-groupes non concluants ; modalité établissement « autre » à surveiller en exploitation.",
+      "Aucune variable protégée ni proxy socio-économique en entrée (minimisation).",
+      "Garde-fous contre la stigmatisation et la prophétie auto-réalisatrice à tenir côté usage."
+    ],
+    "recommendations": [
+      "Conserver la décision d'accompagnement humaine ; ne jamais exposer la seule classe binaire.",
+      "Rappeler l'avertissement de l'article 22 dans la documentation et l'outil, non dans chaque réponse technique.",
+      "Suivre la dérive des entrées par campagne et demander un ré-entraînement quand elle se confirme."
+    ],
+    "evaluation_protocol": "Test scellé (20 % du jeu, jamais vu à l'entraînement), une seule passe. Le seuil, les hyperparamètres et la calibration sont figés sur le train avant l'ouverture du test.",
+    "fairness_note": "Rappel comparable entre sexes et statuts boursiers : pas de décrocheur davantage manqué selon le sexe ou la précarité.",
+    "technical_specs": "Pipeline scikit-learn (préprocesseur + estimateur) sérialisé (joblib), servi par une API FastAPI. L'entrée est typée et validée ; le service ne conserve aucune donnée.",
+    "contact": "Julien ALBURQUERQUE (responsable du projet)."
+  }
+}

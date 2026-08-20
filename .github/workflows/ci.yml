@@ -21,7 +21,8 @@ jobs:
           enable-cache: true
 
       - name: Installer les dépendances
-        run: uv sync
+        # Suite de tests complète : `analysis` (test_modeling → xgboost/optuna) + `cli` (test_cli → typer).
+        run: uv sync --group analysis --group cli
 
       - name: Ruff — lint
         run: uv run ruff check .
@@ -38,3 +39,29 @@ jobs:
 
       - name: Tests unitaires
         run: uv run pytest
+
+  securite:
+    name: Sécurité (CVE high/critique)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer uv (+ Python)
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+
+      - name: Exporter les dépendances résolues (tous groupes)
+        # requirements.txt : entrée universellement parsée par Trivy, gelée sur uv.lock.
+        run: uv export --frozen --all-groups --no-emit-project --format requirements-txt -o requirements.txt
+
+      - name: Trivy — CVE high/critique (échec bloquant)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true # ne bloque pas sur une CVE sans correctif publié
+          exit-code: "1" # échoue la CI si une CVE high/critique corrigeable est trouvée

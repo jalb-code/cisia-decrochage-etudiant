@@ -24,6 +24,11 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=7.0",  # métriques d'exploitation (§13)
 ]
 
+# Point d'entrée de la CLI d'industrialisation (§13, C9) : `decrochage-l1 predict|retrain`.
+# `typer` vit dans le groupe `cli` ci-dessous, hors image d'inférence stricte.
+[project.scripts]
+decrochage-l1 = "decrochage_l1.cli:app"
+
 # Groupes NON installés dans l'image API. Local complet : `uv sync --group analysis` ;
 # image d'inférence : `uv sync --no-default-groups --no-dev` (runtime strict ci-dessus).
 [dependency-groups]
@@ -37,6 +42,10 @@ dev = [
     "missingno>=0.5.2",
     "ipywidgets>=8.1.9",  # widgets interactifs du notebook (barres de progression §9)
     "httpx>=0.28",
+]
+# CLI d'industrialisation (§13) : reproduire prépa+entraînement hors notebook, hors image API.
+cli = [
+    "typer>=0.12",
 ]
 # Analyse : tout ce qui sert le dossier d'étude (notebook, §8-§9, §12), jamais l'image.
 analysis = [
@@ -97,6 +106,8 @@ extend-immutable-calls = [
     "fastapi.Body",
     "fastapi.Query",
     "fastapi.Header",
+    "typer.Option",  # idiome Typer : l'option se déclare en valeur par défaut d'argument (CLI §13)
+    "typer.Argument",
 ]
 
 [tool.ruff.format]
