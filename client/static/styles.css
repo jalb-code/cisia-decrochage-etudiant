@@ -50,6 +50,23 @@ a {
   color: var(--muted);
 }
 
+/* Bandeau art. 22 permanent : rappelle que la décision reste humaine, bien en vue. */
+.art22 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.art22 i {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
 .app {
   display: grid;
   grid-template-columns: 240px 1fr;

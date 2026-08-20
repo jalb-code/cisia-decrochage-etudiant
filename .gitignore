@@ -22,9 +22,10 @@ wheels/
 .vscode/
 .idea/
 
-# Artefacts de modèles (sérialisation joblib) — ne pas versionner
-models/*.joblib
-models/*.pkl
+# Artefacts de modèles (sérialisation joblib) — ne pas versionner. Les livrables
+# documentaires d'`artifacts/` (contrat I/O JSON, model card, métadonnées) restent versionnables.
+artifacts/*.joblib
+artifacts/*.pkl
 
 # Données : aucun palier versionné, quel qu'il soit — précaution RGPD. Un fichier entré
 # dans l'historique Git y demeure : le supprimer plus tard ne l'en retire pas.

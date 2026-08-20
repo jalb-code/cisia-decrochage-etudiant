@@ -1,0 +1,351 @@
+{
+  "entree": {
+    "additionalProperties": false,
+    "description": "Relevé d'un étudiant à mi-S1 — le contrat d'entrée d'un scoring précoce.\n\nChamps requis = ceux sans manquant observé ; champs optionnels (déclaratifs, 4-8 % de\nmanquants) laissés à `None`, imputés par le pipeline. Les cohérences inter-champs\n(`retards ≤ rendus ≤ total`) sont vérifiées ici, refus explicite sinon.",
+    "properties": {
+      "reference_dossier": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Référence opaque du dossier, renvoyée telle quelle (jamais explicative).",
+        "title": "Reference Dossier"
+      },
+      "age": {
+        "examples": [
+          19
+        ],
+        "maximum": 99,
+        "minimum": 16,
+        "title": "Age",
+        "type": "integer"
+      },
+      "filiere": {
+        "enum": [
+          "biologie",
+          "droit",
+          "gestion",
+          "informatique",
+          "lettres",
+          "mathematiques",
+          "psychologie",
+          "staps"
+        ],
+        "examples": [
+          "informatique"
+        ],
+        "title": "Filiere",
+        "type": "string"
+      },
+      "bac_type": {
+        "enum": [
+          "general",
+          "technologique",
+          "professionnel"
+        ],
+        "examples": [
+          "general"
+        ],
+        "title": "Bac Type",
+        "type": "string"
+      },
+      "taux_presence_pct": {
+        "examples": [
+          82.0
+        ],
+        "maximum": 100,
+        "minimum": 0,
+        "title": "Taux Presence Pct",
+        "type": "number"
+      },
+      "heures_lms_total": {
+        "examples": [
+          42.0
+        ],
+        "minimum": 0,
+        "title": "Heures Lms Total",
+        "type": "number"
+      },
+      "nb_ue_total": {
+        "examples": [
+          6
+        ],
+        "minimum": 1,
+        "title": "Nb Ue Total",
+        "type": "integer"
+      },
+      "nb_devoirs_total": {
+        "examples": [
+          12
+        ],
+        "minimum": 1,
+        "title": "Nb Devoirs Total",
+        "type": "integer"
+      },
+      "nb_devoirs_rendus": {
+        "examples": [
+          8
+        ],
+        "minimum": 0,
+        "title": "Nb Devoirs Rendus",
+        "type": "integer"
+      },
+      "retards_rendus": {
+        "examples": [
+          1
+        ],
+        "minimum": 0,
+        "title": "Retards Rendus",
+        "type": "integer"
+      },
+      "messages_forum": {
+        "examples": [
+          3
+        ],
+        "minimum": 0,
+        "title": "Messages Forum",
+        "type": "integer"
+      },
+      "mention_bac": {
+        "anyOf": [
+          {
+            "enum": [
+              "passable",
+              "assez bien",
+              "bien",
+              "tres bien"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "examples": [
+          "bien"
+        ],
+        "title": "Mention Bac"
+      },
+      "motivation": {
+        "anyOf": [
+          {
+            "maximum": 5,
+            "minimum": 1,
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "examples": [
+          3.0
+        ],
+        "title": "Motivation"
+      },
+      "satisfaction": {
+        "anyOf": [
+          {
+            "maximum": 5,
+            "minimum": 1,
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "examples": [
+          4.0
+        ],
+        "title": "Satisfaction"
+      },
+      "sentiment_appartenance": {
+        "anyOf": [
+          {
+            "maximum": 5,
+            "minimum": 1,
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "examples": [
+          3.0
+        ],
+        "title": "Sentiment Appartenance"
+      }
+    },
+    "required": [
+      "age",
+      "filiere",
+      "bac_type",
+      "taux_presence_pct",
+      "heures_lms_total",
+      "nb_ue_total",
+      "nb_devoirs_total",
+      "nb_devoirs_rendus",
+      "retards_rendus",
+      "messages_forum"
+    ],
+    "title": "PredictEtudiantForm",
+    "type": "object"
+  },
+  "sortie": {
+    "$defs": {
+      "ContributionTheme": {
+        "description": "Contribution agrégée d'un thème à la log-cote (signée : protège < 0 < aggrave).",
+        "properties": {
+          "theme": {
+            "title": "Theme",
+            "type": "string"
+          },
+          "contribution": {
+            "title": "Contribution",
+            "type": "number"
+          }
+        },
+        "required": [
+          "theme",
+          "contribution"
+        ],
+        "title": "ContributionTheme",
+        "type": "object"
+      },
+      "ContributionVariable": {
+        "description": "Contribution d'une variable à la log-cote (signée : protège < 0 < aggrave).",
+        "properties": {
+          "variable": {
+            "title": "Variable",
+            "type": "string"
+          },
+          "contribution": {
+            "title": "Contribution",
+            "type": "number"
+          }
+        },
+        "required": [
+          "variable",
+          "contribution"
+        ],
+        "title": "ContributionVariable",
+        "type": "object"
+      }
+    },
+    "description": "Résultat d'un dossier : probabilité, note estimée, indicateur et explicabilité.",
+    "properties": {
+      "reference_dossier": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Reference Dossier"
+      },
+      "proba_abandon": {
+        "maximum": 1,
+        "minimum": 0,
+        "title": "Proba Abandon",
+        "type": "number"
+      },
+      "moyenne_finale": {
+        "maximum": 20,
+        "minimum": 0,
+        "title": "Moyenne Finale",
+        "type": "number"
+      },
+      "signaled": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Signaled"
+      },
+      "seuil_applique": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Seuil Applique"
+      },
+      "provenance_seuil": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Provenance Seuil"
+      },
+      "version_modele": {
+        "title": "Version Modele",
+        "type": "string"
+      },
+      "contributions_theme": {
+        "items": {
+          "$ref": "#/$defs/ContributionTheme"
+        },
+        "title": "Contributions Theme",
+        "type": "array"
+      },
+      "contributions_variable": {
+        "items": {
+          "$ref": "#/$defs/ContributionVariable"
+        },
+        "title": "Contributions Variable",
+        "type": "array"
+      }
+    },
+    "required": [
+      "reference_dossier",
+      "proba_abandon",
+      "moyenne_finale",
+      "signaled",
+      "seuil_applique",
+      "provenance_seuil",
+      "version_modele",
+      "contributions_theme",
+      "contributions_variable"
+    ],
+    "title": "PredictEtudiantReponse",
+    "type": "object"
+  },
+  "exemple_entree": {
+    "reference_dossier": "DEMO-2026-001",
+    "age": 19,
+    "filiere": "informatique",
+    "bac_type": "general",
+    "taux_presence_pct": 72.0,
+    "heures_lms_total": 14.5,
+    "nb_ue_total": 6,
+    "nb_devoirs_total": 12,
+    "nb_devoirs_rendus": 8,
+    "retards_rendus": 3,
+    "messages_forum": 2,
+    "mention_bac": "assez bien",
+    "motivation": 3.0,
+    "satisfaction": 3.0,
+    "sentiment_appartenance": 2.0
+  }
+}

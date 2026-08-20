@@ -34,7 +34,7 @@ RUN groupadd --system app && useradd --system --gid app --home-dir /app app
 COPY --from=build /app/.venv /app/.venv
 COPY src ./src
 # L'artefact modèle n'est pas dans l'image de base : il est monté à l'exécution (compose) ou
-# ajouté au §10 (`COPY models ./models`). Sans lui, /ready répond 503 sans empêcher le démarrage.
+# ajouté au §10 (`COPY artifacts ./artifacts`). Sans lui, /ready répond 503 sans empêcher le démarrage.
 
 USER app
 EXPOSE 8000

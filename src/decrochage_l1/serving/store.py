@@ -1,6 +1,6 @@
 """Entrepôt du modèle : sérialise et charge l'artefact déployable (§10), une fois.
 
-L'artefact déployable tient en trois fichiers dans `models_dir` : le pipeline `abandon`
+L'artefact déployable tient en trois fichiers dans `artifacts_dir` : le pipeline `abandon`
 (classification, porte la probabilité et les contributions), le pipeline `moyenne_finale`
 (régression, cible secondaire), et la **fiche** qui les décrit. `save_bundle` est le point
 de sérialisation qu'appelle le notebook au §10 ; `EntrepotModele` est ce que le service
@@ -36,7 +36,7 @@ class Bundle:
 
 
 def save_bundle(
-    models_dir: Path,
+    artifacts_dir: Path,
     *,
     contract: ServiceContract,
     classifier: Pipeline,
@@ -44,10 +44,10 @@ def save_bundle(
 ) -> None:
     """Sérialise l'artefact déployable (§10), après avoir vérifié la cohérence de la fiche."""
     contract.validate()
-    models_dir.mkdir(parents=True, exist_ok=True)
-    joblib.dump(classifier, models_dir / CLASSIFIER_FILE)
-    joblib.dump(regressor, models_dir / REGRESSOR_FILE)
-    contract_mod.save(contract, models_dir / CONTRACT_FILE)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    joblib.dump(classifier, artifacts_dir / CLASSIFIER_FILE)
+    joblib.dump(regressor, artifacts_dir / REGRESSOR_FILE)
+    contract_mod.save(contract, artifacts_dir / CONTRACT_FILE)
 
 
 class EntrepotModele:
@@ -61,12 +61,12 @@ class EntrepotModele:
         self._bundle: Bundle | None = None
         self._error: str | None = None
 
-    def load(self, models_dir: Path) -> None:
+    def load(self, artifacts_dir: Path) -> None:
         """Charge fiche et pipelines ; en cas d'échec, mémorise le motif sans lever."""
         try:
-            classifier = joblib.load(models_dir / CLASSIFIER_FILE)
-            regressor = joblib.load(models_dir / REGRESSOR_FILE)
-            contract = contract_mod.load(models_dir / CONTRACT_FILE)
+            classifier = joblib.load(artifacts_dir / CLASSIFIER_FILE)
+            regressor = joblib.load(artifacts_dir / REGRESSOR_FILE)
+            contract = contract_mod.load(artifacts_dir / CONTRACT_FILE)
             self._bundle = Bundle(contract=contract, classifier=classifier, regressor=regressor)
             self._error = None
         except Exception as exception:

@@ -20,8 +20,8 @@ services:
       DECROCHAGE_CORS_ORIGINS: ${DECROCHAGE_CORS_ORIGINS:-http://localhost:8080}
       DECROCHAGE_MONITORING_ACTIF: "true"
     volumes:
-      # L'artefact du §10, monté en lecture seule. Absent -> /ready 503, le service démarre quand même.
-      - ../models:/app/models:ro
+      # Les artefacts du §10/§12, montés en lecture seule. Absent -> /ready 503, le service démarre quand même.
+      - ../artifacts:/app/artifacts:ro
     read_only: true
     tmpfs:
       - /tmp

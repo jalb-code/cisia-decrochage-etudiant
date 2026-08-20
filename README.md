@@ -96,7 +96,7 @@ docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
 | Prometheus | http://localhost:9090 |
 
 L'**image d'inférence** n'embarque que le runtime (`uv sync --no-default-groups --no-dev`) ; l'absence
-des libs d'analyse y est vérifiée au build. Le modèle (`models/`) est monté en lecture seule — absent,
+des libs d'analyse y est vérifiée au build. Les artefacts (`artifacts/`) sont montés en lecture seule — absents,
 `/ready` répond 503 sans empêcher le démarrage. La **maquette** (`client/`) est **hors périmètre
 livré** : elle sert la démonstration. Variables d'exploitation : [.env.exemple](.env.exemple).
 
@@ -126,7 +126,8 @@ src/decrochage_l1/  code source réutilisable, importable et testé
                       normalisation, validation, explicabilité, dérive, API FastAPI, métriques
 scripts/     scripts utilitaires (gardes de cohérence du dépôt)
 tests/       tests unitaires (pytest, src/ sur le pythonpath)
-models/      artefacts sérialisés (joblib) : 2 pipelines + fiche du modèle (§10, hors dépôt)
+artifacts/   livrables produits par le code : 2 pipelines + fiche (joblib, §10), contrat I/O
+             JSON, model card + métadonnées (§12). Joblib hors dépôt ; documents versionnables
 reports/     rapports de profilage HTML (générés, hors dépôt : ils citent des valeurs brutes)
 notebooks/   LE notebook certifiant unique (JALB-Decrochage-l1.ipynb)
 deploy/      Dockerfile (image socle-seul), docker-compose, monitoring Prometheus/Grafana

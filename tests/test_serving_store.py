@@ -6,7 +6,7 @@ from decrochage_l1.serving.store import EntrepotModele
 
 def test_chargement_round_trip(stub):
     entrepot = EntrepotModele()
-    entrepot.load(stub.models_dir)
+    entrepot.load(stub.artifacts_dir)
     assert entrepot.ready is True
     assert entrepot.error is None
     assert entrepot.bundle.contract.facts.version == "stub-1"

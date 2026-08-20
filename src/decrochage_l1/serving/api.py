@@ -11,10 +11,10 @@ Cinq principes tenus par le code :
 - **`/health` dit si le processus vit, `/ready` si le modèle est utilisable** — deux sondes ;
 - **le modèle est chargé une fois**, au démarrage, via l'entrepôt injecté.
 
-Chaque réponse porte l'avertissement de l'article 22 : aide à la décision, la décision reste
-humaine. La route `/v1/predict-cohorte` est la principale (le régime réel est une campagne),
-validée **ligne à ligne** (une ligne invalide est refusée seule) ; `/v1/predict-etudiant` sert
-le test ponctuel d'un dossier.
+La route `/v1/predict-cohorte` est la principale (le régime réel est une campagne), validée
+**ligne à ligne** (une ligne invalide est refusée seule) ; `/v1/predict-etudiant` sert le test
+ponctuel d'un dossier. L'avertissement de l'article 22 ne figure pas dans le payload (répété, il
+deviendrait invisible) : il est porté par la documentation du modèle.
 """
 
 import pandas as pd
@@ -98,7 +98,7 @@ def create_app(
     service = service_settings or ServiceSettings()
     if entrepot is None:
         entrepot = EntrepotModele()
-        entrepot.load(runtime_settings.models_dir)
+        entrepot.load(runtime_settings.artifacts_dir)
 
     app = FastAPI(title="Décrochage L1 — service d'inférence", version="1")
     app.state.settings = service
@@ -327,5 +327,5 @@ def create_app(
 
 
 # Application par défaut, pour `uvicorn decrochage_l1.serving.api:app`. Charge l'artefact
-# depuis `settings.models_dir` ; s'il manque, /ready répond 503 sans empêcher le démarrage.
+# depuis `settings.artifacts_dir` ; s'il manque, /ready répond 503 sans empêcher le démarrage.
 app = create_app()

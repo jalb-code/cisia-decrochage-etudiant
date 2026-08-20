@@ -11,7 +11,7 @@ CLE = "secret"
 
 def _client(stub):
     entrepot = EntrepotModele()
-    entrepot.load(stub.models_dir)
+    entrepot.load(stub.artifacts_dir)
     service = ServiceSettings(api_keys=CLE, exposer_indicateur=True, monitoring_actif=False)
     return TestClient(create_app(entrepot=entrepot, service_settings=service))
 

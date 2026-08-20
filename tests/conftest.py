@@ -130,7 +130,7 @@ def _contract(reference: pd.DataFrame) -> ServiceContract:
 class Stub:
     """Ce qu'un test consomme : le dossier d'artefacts, la fiche, et de quoi forger un dossier."""
 
-    models_dir: Path
+    artifacts_dir: Path
     contract: ServiceContract
     training: pd.DataFrame
 
@@ -177,6 +177,6 @@ def stub(tmp_path: Path) -> Stub:
     regressor = _make_pipeline(LinearRegression()).fit(X, y_moyenne)
 
     contract = _contract(training[MODEL_FEATURES].head(300))
-    models_dir = tmp_path / "models"
-    store.save_bundle(models_dir, contract=contract, classifier=classifier, regressor=regressor)
-    return Stub(models_dir=models_dir, contract=contract, training=training)
+    artifacts_dir = tmp_path / "artifacts"
+    store.save_bundle(artifacts_dir, contract=contract, classifier=classifier, regressor=regressor)
+    return Stub(artifacts_dir=artifacts_dir, contract=contract, training=training)

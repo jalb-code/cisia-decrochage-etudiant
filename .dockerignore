@@ -10,7 +10,7 @@ __pycache__
 
 # Données, artefacts et rapports : jamais dans l'image (montés ou ajoutés au §10).
 data
-models
+artifacts
 reports
 
 # Matériel d'étude et de travail, hors runtime.

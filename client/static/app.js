@@ -433,8 +433,9 @@ function closeDrawer() {
 }
 
 /* Ouvre le tiroir sur un dossier scoré : proba, note, indicateur, et l'explicabilité complète
-   (par thème puis par variable). `ctx` porte le seuil appliqué et l'avertissement — de la campagne
-   (`CAMPAGNE`) ou de la réponse d'un dossier unique — pour que le tiroir serve les deux écrans. */
+   (par thème puis par variable). `ctx` porte le seuil appliqué — de la campagne (`CAMPAGNE`) ou de
+   la réponse d'un dossier unique — pour que le tiroir serve les deux écrans. L'avertissement art. 22
+   est porté en permanence par le bandeau de l'en-tête, non répété ici. */
 function openDossierPanel(r, ctx) {
   ensureDrawer();
   if (r.__refused) {
@@ -454,8 +455,7 @@ function openDossierPanel(r, ctx) {
     <h3 style="margin-top:16px">Ce qui pèse sur l'estimation — par thème</h3>
     ${contribBars(themeItems(r.contributions_theme))}
     <h3 style="margin-top:16px">Détail — par variable</h3>
-    ${contribBars(variableItems(r.contributions_variable), labelVariable)}
-    <div class="note-art22">${ctx.avertissement}</div>`;
+    ${contribBars(variableItems(r.contributions_variable), labelVariable)}`;
   $("#drawer-close").onclick = closeDrawer;
   $("#drawer").classList.add("open");
   $("#drawer-overlay").classList.add("open");
@@ -518,7 +518,6 @@ function renderCampagne(host, res) {
 
   CAMPAGNE = {
     rows: [...scored, ...refused],
-    avertissement: res.avertissement,
     seuil: res.seuil_applique,
     provenance: res.provenance_seuil,
     derive: res.derive ?? null,
@@ -557,7 +556,6 @@ function renderCampagne(host, res) {
         <span id="camp-page"></span>
         <button class="btn btn-ghost" id="camp-next">Suivant</button>
       </div>
-      <div class="note-art22">${res.avertissement}</div>
     </div>`;
 
   // Détail de la dérive : bouton du bandeau (ou lien discret si lot représentatif) → modale.
@@ -618,7 +616,6 @@ function renderCampagne(host, res) {
       openDossierPanel(r, {
         seuil: CAMPAGNE.seuil,
         provenance: CAMPAGNE.provenance,
-        avertissement: CAMPAGNE.avertissement,
       });
     }
   };
@@ -783,7 +780,7 @@ function screenDossier() {
           contributions_theme: res.contributions_theme,
           contributions_variable: res.contributions_variable,
         },
-        { seuil: res.seuil_applique, provenance: res.provenance_seuil, avertissement: res.avertissement }
+        { seuil: res.seuil_applique, provenance: res.provenance_seuil }
       );
     } catch (e) {
       showError(e);

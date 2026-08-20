@@ -350,5 +350,5 @@ Un commit ne se fait **que sur demande explicite de Julien**. Le feu vert donné
 1. **Documentation à jour** — `README.md`, `CLAUDE.md` reflètent l'état réel du code.
 2. **Aucune référence morte**, aucun fichier versionné citant `docs/local/<fichier>`.
 3. **Revue du `git diff --staged`** — pas de `print` de debug, pas de code mort, et aucune ressource
-   non versionnée stagée (`data/`, `models/`, `reports/`, `docs/local/`, `*.local.ipynb`).
+   non versionnée stagée (`data/`, `artifacts/*.joblib`, `reports/`, `docs/local/`, `*.local.ipynb`).
 4. **Message conventionnel** (`feat` / `fix` / `docs` / `refactor`), **commit atomique**.

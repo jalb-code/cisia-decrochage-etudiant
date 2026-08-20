@@ -6,9 +6,12 @@ source de vérité du contrat d'entrée ; un test de non-écart garantit qu'il c
 les features du modèle. Les features **dérivées** (`taux_rendu`, `ratio_retards`) n'y figurent
 pas : le service les calcule après validation (`normalization.add_derived`).
 
-Sortie : probabilité d'`abandon`, note `moyenne_finale` bornée, contributions par thème, et
-l'avertissement de l'article 22 (aide à la décision, décision humaine). La fiche (`ServiceContract`)
-porte, elle, ce qu'un schéma d'entrée ne sait pas exprimer : seuil, dérive, thèmes, référence.
+Sortie : probabilité d'`abandon`, note `moyenne_finale` bornée, contributions par thème. La
+fiche (`ServiceContract`) porte, elle, ce qu'un schéma d'entrée ne sait pas exprimer : seuil,
+dérive, thèmes, référence.
+
+L'avertissement de l'article 22 n'est **pas** porté par le payload : un message répété à chaque
+réponse devient invisible. Il vit dans la documentation (notebook, model card), où il se voit.
 """
 
 import math
@@ -20,13 +23,6 @@ from decrochage_l1.serving.contract import ServiceContract
 from decrochage_l1.serving.drift import CampaignDrift
 from decrochage_l1.serving.explain import Contributions
 from decrochage_l1.serving.scoring import DossierScore
-
-# Mention systématique en sortie : matérialise l'absence de décision automatisée (art. 22).
-AVERTISSEMENT = (
-    "Aide à la décision : l'équipe pédagogique conserve la décision d'accompagnement. "
-    "Aucun étudiant n'est contacté automatiquement. Les facteurs présentés sont des "
-    "corrélations, pas des causes."
-)
 
 LOT_MAX = 10_000  # plafond d'un lot : un refus explicite plutôt qu'un épuisement mémoire
 
@@ -138,7 +134,6 @@ class PredictEtudiantReponse(BaseModel):
     version_modele: str
     contributions_theme: list[ContributionTheme]
     contributions_variable: list[ContributionVariable]  # détail dépliable sous les thèmes
-    avertissement: str = AVERTISSEMENT
 
 
 class DossierRefuse(BaseModel):
@@ -166,7 +161,6 @@ class PredictCohorteReponse(BaseModel):
     resultats: list[PredictEtudiantReponse]
     refuses: list[DossierRefuse]
     synthese: SyntheseCohorte
-    avertissement: str = AVERTISSEMENT
     derive: dict | None = None
 
 

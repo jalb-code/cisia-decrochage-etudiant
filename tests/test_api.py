@@ -11,7 +11,7 @@ HEAD = {"X-API-Key": CLE}
 
 def _client(stub, **settings_overrides):
     entrepot = EntrepotModele()
-    entrepot.load(stub.models_dir)
+    entrepot.load(stub.artifacts_dir)
     params = {"api_keys": CLE, "exposer_indicateur": True, "monitoring_actif": False}
     params.update(settings_overrides)
     service = ServiceSettings(**params)
@@ -62,7 +62,7 @@ def test_predict_etudiant_rend_proba_note_et_explicabilite(client, stub):
     assert corps["contributions_theme"]
     assert corps["contributions_variable"]  # détail par variable joint
     assert corps["version_modele"] == "stub-1"
-    assert corps["avertissement"]  # mention art. 22 systématique
+    assert "avertissement" not in corps  # art. 22 porté par la doc, pas par le payload
 
 
 def test_predict_etudiant_champ_interdit_refuse_422(client, stub):
