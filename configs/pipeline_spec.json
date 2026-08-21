@@ -104,7 +104,7 @@
     ],
     "recommendations": [
       "Conserver la décision d'accompagnement humaine ; ne jamais exposer la seule classe binaire.",
-      "Rappeler l'avertissement de l'article 22 dans la documentation et l'outil, non dans chaque réponse technique.",
+      "Rappeler l'avertissement de l'article 22 dans la documentation et l'outil",
       "Suivre la dérive des entrées par campagne et demander un ré-entraînement quand elle se confirme."
     ],
     "evaluation_protocol": "Test scellé (20 % du jeu, jamais vu à l'entraînement), une seule passe. Seuil et hyperparamètres figés sur le train ; probabilités non recalibrées (D31).",

@@ -54,6 +54,7 @@ analysis = [
     "xgboost>=3.4.1",  # famille boosting comparée en §8
     "optuna>=4.9",  # réglage des hyperparamètres en §9 (TPE + pruning + budget borné)
     "codecarbon>=3.3",  # empreinte carbone du réglage en §9
+    "xlsxwriter>=3.2",  # export Excel formaté du récapitulatif des métriques (§15.4)
 ]
 
 # `src/` layout : indiquer explicitement le package à empaqueter.
