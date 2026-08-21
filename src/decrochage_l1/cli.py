@@ -16,19 +16,21 @@ notebook (les doublons avec celui-ci sont assumés — industrialiser transcrit,
 
 import hashlib
 import shutil
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import typer
+from pydantic import ValidationError
 
 from decrochage_l1.config import settings
 from decrochage_l1.data import preparation
 from decrochage_l1.data.utils import profiling_utils, recoding_utils
 from decrochage_l1.modeling import evaluation, pipeline, preprocessing, protocol, threshold
 from decrochage_l1.modeling.spec import PipelineSpec, load_spec
-from decrochage_l1.serving import normalization, packaging, scoring, store
+from decrochage_l1.serving import normalization, packaging, schemas, scoring, store
 
 app = typer.Typer(
     add_completion=False,
@@ -70,6 +72,40 @@ def _conform(csv_path: Path, spec: PipelineSpec) -> tuple[pd.DataFrame, pd.DataF
     return raw, normalization.add_derived(recoded)
 
 
+def _validate_rows(
+    conformed: pd.DataFrame, references: list[str | None]
+) -> tuple[list[int], list[tuple[int, str | None, str]]]:
+    """Valide chaque ligne conformée contre le contrat d'entrée (`schemas.PredictEtudiantForm`).
+
+    Rend les positions des lignes valides et, pour les refusées, `(position, référence, motifs)`.
+    Seuls les champs d'entrée du modèle sont soumis au schéma - les dérivées, calculées, en sont
+    exclues ; un manquant devient `None` (imputé côté pipeline pour les champs optionnels).
+    """
+    input_fields = list(schemas.INPUT_FIELDS)
+    valid_pos: list[int] = []
+    refused: list[tuple[int, str | None, str]] = []
+    for i in range(len(conformed)):
+        row = conformed.iloc[i]
+        payload = {}
+        for field in input_fields:
+            if field not in row:
+                continue
+            value = row[field]
+            if pd.isna(value):
+                payload[field] = None
+            else:
+                payload[field] = value.item() if hasattr(value, "item") else value
+        try:
+            schemas.PredictEtudiantForm.model_validate(payload)
+            valid_pos.append(i)
+        except ValidationError as error:
+            motifs = "; ".join(
+                f"{'.'.join(str(x) for x in e['loc'])}: {e['msg']}" for e in error.errors()
+            )
+            refused.append((i, references[i], motifs))
+    return valid_pos, refused
+
+
 @app.command()
 def predict(
     input_csv: Path = typer.Option(..., "--input", "-i", help="CSV des dossiers à scorer."),
@@ -103,6 +139,19 @@ def predict(
     references: list[str | None] = (
         raw[id_columns[0]].astype(str).tolist() if id_columns else [None] * len(accepted)
     )
+
+    # Contrat unique : après conformation de l'écriture, chaque ligne est validée contre le MÊME
+    # schéma que l'API (bornes, modalités, cohérences). La CLI conforme PUIS valide - une ligne
+    # hors contrat est refusée seule (refus partiel), jamais scorée en silence.
+    valid_pos, refused = _validate_rows(accepted, references)
+    for pos, ref, motif in refused:
+        typer.echo(f"Ligne {pos} refusée ({ref}) : {motif}", err=True)
+    if not valid_pos:
+        typer.echo("Aucune ligne valide à scorer.", err=True)
+        raise typer.Exit(code=1)
+
+    accepted = accepted.iloc[valid_pos]
+    references = [references[i] for i in valid_pos]
     scores = scoring.score(
         bundle,
         accepted,
@@ -190,6 +239,9 @@ def retrain(
     artifacts_dir: Path = typer.Option(
         None, "--artifacts", help="Dossier de sortie de l'artefact (défaut : settings)."
     ),
+    version: str = typer.Option(
+        None, "--version", help="Version de l'artefact (défaut : celle de la spec)."
+    ),
     save_paliers: bool = typer.Option(
         True,
         "--save-paliers/--no-save-paliers",
@@ -198,6 +250,8 @@ def retrain(
 ) -> None:
     """Rejoue bronze->silver->gold->entraînement->package sur un nouveau jeu, à iso-périmètre."""
     spec = load_spec(spec_path)
+    if version:
+        spec = replace(spec, version=version)  # surcharge de version (discipline, D41)
     artifacts_dir = artifacts_dir or settings.artifacts_dir
 
     # --- silver : conformation (types déclarés), recodage, dédoublonnage ---
@@ -239,9 +293,11 @@ def retrain(
         f"rappel {metrics_holdout['rappel']:.1%} @seuil {decision_threshold:.2f}"
     )
 
-    # --- package : bundle + fiche + carte + métadonnées ---
+    # --- package : archive horodatée + versionnée, puis rafraîchissement du dossier courant ---
     created_at = datetime.now(UTC).isoformat(timespec="seconds")
     dataset = (settings.gold_dir / GOLD_FILE).relative_to(settings.root_dir).as_posix()
+    stamp = created_at[:19].replace("-", "").replace(":", "")  # ex : 20260825T143002
+    archive_dir = artifacts_dir / "history" / f"{stamp}_v{spec.version}"
     paths = packaging.package(
         spec,
         classifier=classifier,
@@ -250,11 +306,21 @@ def retrain(
         threshold=decision_threshold,
         metrics_holdout=metrics_holdout,
         created_at=created_at,
-        artifacts_dir=artifacts_dir,
+        artifacts_dir=archive_dir,
         dataset=dataset,
         gold_md5=gold_md5,
     )
-    typer.echo(f"artefact écrit dans {artifacts_dir} · carte {paths['card'].name}")
+
+    # Le service et `predict` lisent le dossier COURANT (noms de fichiers canoniques, inchangés) :
+    # on y recopie l'archive fraîche. Les versions passées restent sous history/ pour le rollback.
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    for produit in archive_dir.iterdir():
+        if produit.is_file():
+            shutil.copy(produit, artifacts_dir / produit.name)
+    typer.echo(
+        f"artefact v{spec.version} archivé dans {archive_dir} · dossier courant rafraîchi "
+        f"({artifacts_dir}) · carte {paths['card'].name}"
+    )
 
 
 if __name__ == "__main__":

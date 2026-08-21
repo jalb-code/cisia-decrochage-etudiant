@@ -87,7 +87,7 @@
     "description": "Modèle d'aide à la décision qui estime, à mi-parcours du premier semestre, la probabilité qu'un étudiant de L1 abandonne, afin de déclencher un accompagnement humain.",
     "details": {
       "Développé par": "Julien ALBURQUERQUE",
-      "Type": "deux modèles - classification (régression logistique calibrée) pour la probabilité d'abandon ; régression (gradient boosting) pour une estimation de la note finale, secondaire, qui hiérarchise l'intensité de l'accompagnement",
+      "Type": "deux modèles - classification (régression logistique, probabilités nativement fiables et non recalibrées, D31) pour la probabilité d'abandon ; régression (gradient boosting) pour une estimation de la note finale, secondaire, qui hiérarchise l'intensité de l'accompagnement",
       "Cibles": "abandon (probabilité, principale) · moyenne_finale (/20, secondaire)",
       "Langue des données": "français",
       "Licence": "usage uniquement dans le cadre de la certification CISIA"
@@ -97,7 +97,7 @@
     "out_of_scope": "Aucune décision administrative automatisée (orientation, sanction, sélection). Aide à la décision : la décision d'accompagnement reste humaine (RGPD, art. 22). Ne jamais exposer la seule classe binaire à l'utilisateur.",
     "limitations": [
       "Cohorte d'un seul établissement et d'une seule année : généralisation à valider ailleurs.",
-      "Seuil non recalé sur le test scellé : le rappel y passe un peu sous le plancher visé.",
+      "Seuil fixé sur l'OOF et non recalé sur le test (par principe) : le rappel y est au niveau du plancher visé.",
       "Petits sous-groupes non concluants ; modalité établissement « autre » à surveiller en exploitation.",
       "Aucune variable protégée ni proxy socio-économique en entrée (minimisation).",
       "Garde-fous contre la stigmatisation et la prophétie auto-réalisatrice à tenir côté usage."
@@ -107,9 +107,9 @@
       "Rappeler l'avertissement de l'article 22 dans la documentation et l'outil, non dans chaque réponse technique.",
       "Suivre la dérive des entrées par campagne et demander un ré-entraînement quand elle se confirme."
     ],
-    "evaluation_protocol": "Test scellé (20 % du jeu, jamais vu à l'entraînement), une seule passe. Le seuil, les hyperparamètres et la calibration sont figés sur le train avant l'ouverture du test.",
+    "evaluation_protocol": "Test scellé (20 % du jeu, jamais vu à l'entraînement), une seule passe. Seuil et hyperparamètres figés sur le train ; probabilités non recalibrées (D31).",
     "fairness_note": "Rappel comparable entre sexes et statuts boursiers : pas de décrocheur davantage manqué selon le sexe ou la précarité.",
-    "technical_specs": "Pipeline scikit-learn (préprocesseur + estimateur) sérialisé (joblib), servi par une API FastAPI. L'entrée est typée et validée ; le service ne conserve aucune donnée.",
+    "technical_specs": "Pipeline scikit-learn (préprocesseur + estimateur) sérialisé (joblib), servi par une API FastAPI. L'entrée est typée et validée ; le service ne journalise aucune donnée en exploitation. Seul un instantané du train (sans identifiant ni attribut protégé) est scellé dans l'artefact pour mesurer la dérive, remplacé à chaque ré-entraînement.",
     "contact": "Julien ALBURQUERQUE (responsable du projet)."
   }
 }

@@ -56,11 +56,14 @@ class PredictEtudiantForm(BaseModel):
     )
 
     # --- Requis (0 % de manquants dans les données) ---
-    age: int = Field(..., ge=16, le=99, examples=[19])
+    # Bornes resserrées au domaine d'apprentissage (marge comprise) : le modèle linéaire
+    # extrapole sans limite, une valeur hors domaine (erreur d'export) produit un score absurde
+    # mais confiant. Observé sur le gold : age 17-27, heures_lms 0-170,5 (§5, §6).
+    age: int = Field(..., ge=16, le=30, examples=[19])
     filiere: Filiere = Field(..., examples=["informatique"])
     bac_type: BacType = Field(..., examples=["general"])
     taux_presence_pct: float = Field(..., ge=0, le=100, examples=[82.0])
-    heures_lms_total: float = Field(..., ge=0, examples=[42.0])  # grandeur ouverte, sans plafond
+    heures_lms_total: float = Field(..., ge=0, le=250, examples=[42.0])  # plafond ~1,5x max observé
     nb_ue_total: int = Field(..., ge=1, examples=[6])
     nb_devoirs_total: int = Field(..., ge=1, examples=[12])  # >= 1 : dénominateur des dérivées
     nb_devoirs_rendus: int = Field(..., ge=0, examples=[8])

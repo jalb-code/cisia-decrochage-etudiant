@@ -20,7 +20,7 @@
         "examples": [
           19
         ],
-        "maximum": 99,
+        "maximum": 30,
         "minimum": 16,
         "title": "Age",
         "type": "integer"
@@ -67,6 +67,7 @@
         "examples": [
           42.0
         ],
+        "maximum": 250,
         "minimum": 0,
         "title": "Heures Lms Total",
         "type": "number"
