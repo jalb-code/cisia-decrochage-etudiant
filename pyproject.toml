@@ -118,3 +118,8 @@ quote-style = "double"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    # Bruit d'import de starlette.testclient (dépendance) : il pousse httpx2 à la place de httpx.
+    # Filtré au message pour ne pas masquer d'autres dépréciations, y compris les nôtres.
+    "ignore:Using .httpx. with .starlette.testclient. is deprecated",
+]
