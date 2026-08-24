@@ -16,6 +16,7 @@ si une référence fautive est trouvée.
 """
 
 import contextlib
+import io
 import re
 import sys
 
@@ -53,6 +54,7 @@ def check_refs(files: list[str]) -> int:
 
 if __name__ == "__main__":
     # Sortie robuste quel que soit l'encodage du terminal (Windows cp1252, etc.).
-    with contextlib.suppress(AttributeError, ValueError):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    with contextlib.suppress(ValueError):
+        if isinstance(sys.stdout, io.TextIOWrapper):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(check_refs(sys.argv[1:]))

@@ -27,8 +27,11 @@ ROOT = Path(__file__).resolve().parents[1]
 LIVRABLE_NOM = "Alburquerque_Julien_decrochage-l1"
 NOTEBOOK_REL = "notebooks/JALB-Decrochage-l1.ipynb"
 
-# Ordures à ne jamais recopier dans un dossier du livrable.
-IGNORER = shutil.ignore_patterns("__pycache__", "*.pyc", ".ruff_cache", "*.bak", "history")
+# Ordures à ne jamais recopier dans un dossier du livrable (.gitkeep n'a de sens que dans Git,
+# où il préserve un dossier vide : dans le livrable, les dossiers portent de vrais fichiers).
+IGNORER = shutil.ignore_patterns(
+    "__pycache__", "*.pyc", ".ruff_cache", "*.bak", "history", ".gitkeep", ".gitignore"
+)
 
 # Fichiers copiés tels quels : (source relative au dépôt, destination relative au livrable).
 FICHIERS = [
@@ -110,6 +113,23 @@ def copier(out_dir: Path, notebook: Path) -> None:
     (out_dir / "reports").mkdir(parents=True, exist_ok=True)
     for html in rapports:
         shutil.copy2(html, out_dir / "reports" / html.name)
+
+    nettoyer(out_dir)
+
+
+def nettoyer(out_dir: Path) -> None:
+    """Filet de sécurité : purge tout cache ou marqueur Git qui aurait pu apparaître dans la sortie.
+
+    Un `ruff`/`pytest` lancé par mégarde depuis le livrable y dépose un `.ruff_cache` :
+    on le retire ici pour que dossier et archive restent propres quoi qu'il arrive.
+    """
+    for chemin in sorted(out_dir.rglob("*"), reverse=True):
+        if chemin.is_dir() and chemin.name in {".ruff_cache", "__pycache__"}:
+            shutil.rmtree(chemin, ignore_errors=True)
+        elif chemin.is_file() and (
+            chemin.name in {".gitkeep", ".gitignore"} or chemin.suffix in {".pyc", ".bak"}
+        ):
+            chemin.unlink(missing_ok=True)
 
 
 def zipper(out_dir: Path) -> Path:
