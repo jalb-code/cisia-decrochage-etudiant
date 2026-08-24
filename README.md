@@ -228,8 +228,7 @@ docs/
   exemple/                jeux d'exemple pour la CLI (cohortes avec / sans erreurs de saisie)
   registre-decisions.csv  registre des questions et décisions (vue de navigation)
   cas_usage/              énoncé du cas d'usage
-  support_formation/      supports de formation (local, non versionné)
-  local/                  zone de travail non versionnée, NON-AUTORITATIVE
+  support_formation/      supports de formation (local, non versionné)  
 ```
 
 Contexte de travail, démarche et consignes détaillées : voir [CLAUDE.md](CLAUDE.md).

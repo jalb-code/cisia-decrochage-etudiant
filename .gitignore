@@ -26,6 +26,9 @@ wheels/
 # documentaires d'`artifacts/` (contrat I/O JSON, model card, métadonnées) restent versionnables.
 artifacts/*.joblib
 artifacts/*.pkl
+# Archives de ré-entraînement versionné (`retrain --version`) : rollback, pas livrable.
+# `artifacts/*.joblib` est un glob à un seul niveau et ne couvre pas ce sous-dossier.
+artifacts/history/
 
 # Données : aucun palier versionné, quel qu'il soit — précaution RGPD. Un fichier entré
 # dans l'historique Git y demeure : le supprimer plus tard ne l'en retire pas.

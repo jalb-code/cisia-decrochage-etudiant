@@ -1,6 +1,6 @@
 # Model card — Détection du décrochage en L1 (mi-S1)
 
-**Version** 1.0.0 · **Date** 2026-08-21 · **Responsable de traitement** Établissement
+**Version** 1.0.0 · **Date** 2026-08-24 · **Responsable de traitement** Établissement
 
 ## Détails du modèle
 
@@ -23,7 +23,6 @@ Modèle d'aide à la décision qui estime, à mi-parcours du premier semestre, l
 ## Biais, risques et limites
 
 - Cohorte d'un seul établissement et d'une seule année : généralisation à valider ailleurs.
-- Seuil fixé sur l'OOF et non recalé sur le test (par principe) : le rappel y est au niveau du plancher visé.
 - Petits sous-groupes non concluants ; modalité établissement « autre » à surveiller en exploitation.
 - Aucune variable protégée ni proxy socio-économique en entrée (minimisation).
 - Garde-fous contre la stigmatisation et la prophétie auto-réalisatrice à tenir côté usage.

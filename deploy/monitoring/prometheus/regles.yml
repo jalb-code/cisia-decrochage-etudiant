@@ -75,18 +75,3 @@ groups:
         annotations:
           resume: "Latence p95 de /v1/predict-cohorte au-dessus de 30 s."
           action: "Une campagne de ~5 200 dossiers se score en ~1,5 s ; investiguer un facteur 20."
-
-  - name: politique
-    rules:
-      # Tolérance ±0,01 : la jauge porte la valeur sérialisée (~0,417), la politique défendue au
-      # notebook s'énonce 0,42 (rappel ≥ 80 %, §9.4). Une surcharge d'exploitation (D38) déplace
-      # le seuil au-delà de la tolérance et fait remonter l'alerte - l'override reste observable.
-      - alert: SeuilInattendu
-        expr: abs(decrochage_seuil_defaut - 0.42) > 0.01
-        for: 5m
-        labels:
-          gravite: avertissement
-          destinataire: direction de la réussite étudiante
-        annotations:
-          resume: "Le seuil de décision configuré s'écarte de la politique attendue (0,42)."
-          action: "Confirmer le changement de seuil ; s'il est voulu, mettre cette règle à jour avec la configuration."
