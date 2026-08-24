@@ -78,9 +78,10 @@ extend-exclude = [".venv*", "venv*", "dist", "build"]
 # C4 = comprehensions
 # N  = conventions de nommage
 # RUF = règles ruff
+# PLW2901 = variable de boucle écrasée par une affectation dans le corps (recouvrement silencieux).
 # D1xx = présence des docstrings (pydocstyle) : module + classe/méthode/fonction publiques,
 #        sans imposer leur mise en forme : docstrings en français, commentaires réservés au non-évident.
-select = ["E", "F", "I", "UP", "B", "SIM", "C4", "N", "RUF", "D100", "D101", "D102", "D103"]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "N", "RUF", "PLW2901", "D100", "D101", "D102", "D103"]
 
 # Symboles mathématiques employés comme tels (ρ de Spearman, η rapport de corrélation,
 # σ écart-type, × séparateur de dimensions) : les autoriser plutôt que RUF001/RUF003 ne
