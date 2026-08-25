@@ -215,7 +215,8 @@ src/decrochage_l1/  code source réutilisable, importable et testé
   modeling/           préprocesseur appris, familles de modèles, protocole, réglage (§8-§9)
   serving/            service d'inférence (§10-§13), runtime pur : contrat/fiche, entrepôt,
                       normalisation, validation, explicabilité, dérive, API FastAPI, métriques
-scripts/     scripts utilitaires (gardes de cohérence du dépôt)
+  reporting/          moteur d'export Excel du récapitulatif des métriques (§15.4), testé
+scripts/     scripts utilitaires : garde de cohérence du dépôt + outillage du livrable
 tests/       tests unitaires (pytest, src/ sur le pythonpath)
 artifacts/   livrables produits par le code : 2 pipelines + fiche (joblib, §10), contrat I/O
              JSON, model card + métadonnées (§12). Joblib hors dépôt ; documents versionnables
