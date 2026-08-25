@@ -20,7 +20,26 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
+
+
+def build_drift_reference(frame: pd.DataFrame, *, seed: int) -> pd.DataFrame:
+    """Référence de dérive dé-identifiée : chaque colonne mélangée indépendamment (D45).
+
+    La mesure de dérive ne lit que la **marginale** de chaque variable (PSI par bacs, KS,
+    proportions catégorielles) - la structure jointe des lignes ne lui sert jamais. On permute
+    donc chaque colonne avec la même graine : les distributions par variable restent **intactes**
+    (PSI et KS inchangés au bit près), mais plus aucune ligne ne correspond à un dossier réel -
+    aucun étudiant n'est reconstituable (minimisation, art. 5.1.c). La graine fixe rend la
+    référence reproductible ; chaque colonne reçoit sa propre permutation (l'état du générateur
+    avance d'un tirage à l'autre).
+    """
+    rng = np.random.default_rng(seed)
+    melangees = {
+        colonne: frame[colonne].to_numpy()[rng.permutation(len(frame))] for colonne in frame.columns
+    }
+    return pd.DataFrame(melangees, columns=frame.columns)
 
 
 @dataclass
@@ -31,8 +50,10 @@ class ModelFacts:
     numeric: tuple[str, ...]  # colonnes numériques, pour la sélection des variables de dérive
     categorical: tuple[str, ...]  # colonnes catégorielles, idem
     themes: dict[str, str]  # variable source -> thème, pour l'agrégation de l'explicabilité
-    # Instantané du train, servant de référence à la dérive ; hors comparaison/repr (volumineux).
+    # Référence de dérive : marginales par colonne, mélangées indépendamment (D45) ; hors repr.
     drift_reference: pd.DataFrame | None = field(default=None, compare=False, repr=False)
+    # Atteste que `drift_reference` porte des marginales dé-identifiées, pas des dossiers (D45).
+    drift_reference_shuffled: bool = False
 
 
 @dataclass

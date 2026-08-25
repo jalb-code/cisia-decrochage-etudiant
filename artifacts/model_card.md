@@ -1,6 +1,6 @@
 # Model card — Détection du décrochage en L1 (mi-S1)
 
-**Version** 1.0.0 · **Date** 2026-08-24 · **Responsable de traitement** Établissement
+**Version** 1.0.0 · **Date** 2026-08-25 · **Responsable de traitement** Établissement
 
 ## Détails du modèle
 

@@ -74,6 +74,10 @@ def test_contract_porte_seuils_et_reference(tmp_path):
     assert contract.defaults.drift_alerte == 0.25
     assert contract.facts.drift_reference is not None
     assert list(contract.facts.drift_reference.columns) == feats
+    # D45 : la référence embarquée est dé-identifiée (marginales mélangées, aucun dossier joint).
+    assert contract.facts.drift_reference_shuffled is True
+    jointes = gold[feats].merge(contract.facts.drift_reference, how="inner", on=feats)
+    assert len(jointes) < len(gold)
 
 
 def test_gouvernance_spec_ne_derive_pas_de_la_model_card_notebook():

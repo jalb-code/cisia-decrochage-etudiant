@@ -19,7 +19,12 @@ from sklearn.pipeline import Pipeline
 
 from decrochage_l1.modeling.spec import PipelineSpec
 from decrochage_l1.serving import model_card, store
-from decrochage_l1.serving.contract import ModelFacts, OperationalDefaults, ServiceContract
+from decrochage_l1.serving.contract import (
+    ModelFacts,
+    OperationalDefaults,
+    ServiceContract,
+    build_drift_reference,
+)
 
 
 def package_version(distribution: str = "decrochage-l1") -> str:
@@ -51,7 +56,8 @@ def build_contract(
             numeric=tuple(numeric_facts),
             categorical=tuple(categorical_facts),
             themes=themes,
-            drift_reference=train[model_features].copy(),
+            drift_reference=build_drift_reference(train[model_features], seed=spec.seed),
+            drift_reference_shuffled=True,
         ),
         defaults=OperationalDefaults(
             threshold=float(threshold),
